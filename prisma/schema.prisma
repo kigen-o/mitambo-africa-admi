@@ -1,0 +1,171 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+// generator client_py {
+//   provider = "prisma-client-py"
+// }
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  role      String   @default("user")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  profile   Profile?
+  invoices  Invoice[]
+  quotations Quotation[]
+}
+
+model Profile {
+  id        String  @id
+  fullName  String?
+  avatarUrl String?
+  user      User    @relation(fields: [id], references: [id], onDelete: Cascade)
+}
+
+model Client {
+  id         String      @id @default(uuid())
+  name       String
+  business   String?
+  email      String
+  phone      String?
+  address    String?
+  status     String      @default("Active")
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  invoices   Invoice[]
+  projects   Project[]
+  quotations Quotation[]
+  communications Communication[]
+}
+
+model Communication {
+  id        String   @id @default(uuid())
+  clientId  String
+  type      String   // email, call, meeting
+  subject   String
+  summary   String
+  date      DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+}
+
+model Invoice {
+  id          String   @id @default(uuid())
+  clientId    String
+  title       String
+  amount      Float
+  paid        Float    @default(0)
+  status      String   @default("Unpaid")
+  dueDate     DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  items       String?
+  client      Client   @relation(fields: [clientId], references: [id])
+  vatRate     Float    @default(0)
+  createdById String?
+  user        User?    @relation(fields: [createdById], references: [id])
+  showVat     Boolean  @default(true)
+}
+
+model Product {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  price       Float
+  stock       Int      @default(0)
+  category    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Quotation {
+  id         String   @id @default(uuid())
+  clientId   String
+  title      String
+  amount     Float
+  status     String   @default("Draft")
+  vatRate    Float    @default(0)
+  validUntil DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  items      String?
+  client     Client   @relation(fields: [clientId], references: [id])
+  createdById String?
+  user       User?    @relation(fields: [createdById], references: [id])
+  showVat    Boolean  @default(true)
+}
+
+model Project {
+  id        String   @id @default(uuid())
+  name      String
+  clientId  String
+  stage     String   @default("Design")
+  progress  Int      @default(0)
+  priority  String   @default("Medium")
+  deadline  DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  client    Client   @relation(fields: [clientId], references: [id])
+  tasks     Task[]
+}
+
+model Settings {
+  id              String   @id @default(uuid())
+  companyName     String?
+  companyEmail    String?
+  companyPhone    String?
+  companyAddress  String?
+  companyLogo     String?
+  companyWebsite  String?
+  companySubtitle String?
+  mpesaPaybill    String?
+  mpesaAccount    String?
+  mpesaKey        String?
+  mpesaSecret     String?
+  updatedAt       DateTime @updatedAt
+}
+
+model Task {
+  id          String    @id @default(uuid())
+  title       String
+  description String?
+  status      String    @default("pending")
+  dueDate     DateTime?
+  priority    String    @default("Medium")
+  assignedTo  String?
+  projectId   String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  project     Project?  @relation(fields: [projectId], references: [id])
+  files       File[]
+}
+
+model File {
+  id        String   @id @default(uuid())
+  name      String
+  path      String
+  size      Int
+  type      String
+  createdAt DateTime @default(now())
+  taskId    String?
+  task      Task?    @relation(fields: [taskId], references: [id])
+}
+
+model Expense {
+  id          String   @id @default(uuid())
+  date        DateTime
+  description String
+  category    String
+  amount      Float
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
