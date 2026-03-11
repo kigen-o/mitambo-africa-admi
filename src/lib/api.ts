@@ -1,7 +1,7 @@
 // API URL configuration - automatically switches between dev and production
-const API_URL = import.meta.env.PROD
-    ? '/api'  // Production: relative URL (same domain)
-    : 'http://localhost:3001/api';  // Development: localhost
+const API_URL = import.meta.env.VITE_API_URL 
+    ? import.meta.env.VITE_API_URL 
+    : (import.meta.env.PROD ? '/api' : 'http://localhost:3001/api');
 
 import { User, Client, Invoice, Quotation, LoginCredentials, SignupData, Product, BackendSettings, UserUpdateDTO, DashboardStats, Task, Project, Expense, Communication } from "@/types";
 
