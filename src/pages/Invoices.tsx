@@ -131,9 +131,15 @@ export default function Invoices() {
   const handleGeneratePDF = async (inv: Invoice, action: 'download' | 'preview' | 'print' | 'email' = 'download') => {
     if (!inv.client) return;
 
-    const items = typeof inv.items === 'string'
+    const rawItems = typeof inv.items === 'string'
       ? JSON.parse(inv.items)
       : (inv.items || []);
+
+    const items = rawItems.map((item: any) => ({
+      ...item,
+      price: Number(item.price ?? item.rate ?? item.amount ?? 0),
+      quantity: Number(item.quantity ?? 1)
+    }));
 
     // Calculate totals
     // Calculate totals with safe rounding
@@ -278,8 +284,8 @@ export default function Invoices() {
                   <td className="py-3.5 px-5 font-semibold cursor-pointer">{formatAmount(inv.amount)}</td>
                   <td className="py-3.5 px-5 cursor-pointer">{formatAmount(inv.paid)}</td>
                   <td className="py-3.5 px-5 cursor-pointer">
-                    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${statusConfig[inv.status].className}`}>
-                      {inv.status}
+                    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${statusConfig[inv.status || 'Draft']?.className || "bg-muted text-muted-foreground"}`}>
+                      {inv.status || 'Draft'}
                     </span>
                   </td>
                   <td className="py-3.5 px-5 text-muted-foreground cursor-pointer">{new Date(inv.dueDate).toLocaleDateString()}</td>
@@ -316,14 +322,12 @@ export default function Invoices() {
                         }}>
                           <Pencil className="mr-2 h-4 w-4" /> Edit Status
                         </DropdownMenuItem>
-                        {inv.status === 'Draft' && (
-                          <DropdownMenuItem onClick={() => {
-                            setEditingInvoice(inv);
-                            setIsCreateDialogOpen(true);
-                          }}>
-                            <Pencil className="mr-2 h-4 w-4" /> Edit Content
-                          </DropdownMenuItem>
-                        )}
+                        <DropdownMenuItem onClick={() => {
+                          setEditingInvoice(inv);
+                          setIsCreateDialogOpen(true);
+                        }}>
+                          <Pencil className="mr-2 h-4 w-4" /> Edit Content
+                        </DropdownMenuItem>
                         {user?.role === 'super_admin' && (
                           <DropdownMenuItem onClick={() => handleDeleteInvoice(inv.id)} className="text-destructive focus:text-destructive">
                             <Trash2 className="mr-2 h-4 w-4" /> Delete

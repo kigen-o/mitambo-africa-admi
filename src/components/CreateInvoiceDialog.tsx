@@ -51,7 +51,12 @@ export function CreateInvoiceDialog({ open, onOpenChange, onInvoiceCreated, clie
                 const parsedItems = typeof invoice.items === 'string'
                     ? JSON.parse(invoice.items)
                     : (invoice.items || []);
-                setItems(parsedItems.length > 0 ? parsedItems : [{ description: "", quantity: 1, price: 0 }]);
+                const normalizedItems = parsedItems.map((item: any) => ({
+                    ...item,
+                    price: Number(item.price ?? item.rate ?? item.amount ?? 0),
+                    quantity: Number(item.quantity ?? 1)
+                }));
+                setItems(normalizedItems.length > 0 ? normalizedItems : [{ description: "", quantity: 1, price: 0 }]);
             } else if (clientId) {
                 setFormData(prev => ({ ...prev, clientId, status: "Unpaid", showVat: true }));
                 setItems([{ description: "", quantity: 1, price: 0 }]);

@@ -3,15 +3,14 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { CurrencyProvider } from "@/contexts/CurrencyContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProductsProvider } from "@/contexts/ProductsContext"; // Added import
 import { NotificationsProvider } from "@/contexts/NotificationsContext"; // Added import
 import { ThemeProvider } from "@/components/theme-provider";
 import { CompanyProvider } from "@/contexts/CompanyContext";
-import AppLayout from "@/components/AppLayout";
-import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { ProtectedLayout } from "@/components/ProtectedLayout";
 
 import Dashboard from "./pages/Dashboard";
 import TasksPage from "./pages/Tasks";
@@ -48,31 +47,32 @@ const App = () => {
                     <Toaster />
                     <Sonner />
                     <BrowserRouter>
-                      <AppLayout>
-                        <Routes>
-                          <Route path="/login" element={<Login />} />
-                          <Route path="/signup" element={<Signup />} />
-                          
-                          <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-                          <Route path="/staff" element={<ProtectedRoute><StaffDashboard /></ProtectedRoute>} />
-                          <Route path="/tasks" element={<ProtectedRoute><TasksPage /></ProtectedRoute>} />
-                          <Route path="/messages" element={<ProtectedRoute><MessagesPage /></ProtectedRoute>} />
-                          <Route path="/clients" element={<ProtectedRoute><Clients /></ProtectedRoute>} />
-                          <Route path="/clients/:id" element={<ProtectedRoute><ClientDetails /></ProtectedRoute>} />
-                          <Route path="/products" element={<ProtectedRoute><Products /></ProtectedRoute>} />
-                          <Route path="/files" element={<ProtectedRoute><FilesPage /></ProtectedRoute>} />
-                          <Route path="/projects" element={<ProtectedRoute><Projects /></ProtectedRoute>} />
-                          <Route path="/quotations" element={<ProtectedRoute><Quotations /></ProtectedRoute>} />
-                          <Route path="/invoices" element={<ProtectedRoute><Invoices /></ProtectedRoute>} />
-                          <Route path="/expenses" element={<ProtectedRoute><Expenses /></ProtectedRoute>} />
-                          <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
-                          <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
-                          <Route path="/calendar" element={<ProtectedRoute><CalendarPage /></ProtectedRoute>} />
-                          <Route path="/help" element={<ProtectedRoute><Help /></ProtectedRoute>} />
-                          
-                          <Route path="*" element={<NotFound />} />
-                        </Routes>
-                      </AppLayout>
+                      <Routes>
+                        {/* Public Routes */}
+                        <Route path="/login" element={<Login />} />
+                        <Route path="/signup" element={<Signup />} />
+                        
+                        {/* Protected Routes directly wrapped in layout */}
+                        <Route path="/" element={<ProtectedLayout><Dashboard /></ProtectedLayout>} />
+                        <Route path="/dashboard" element={<Navigate to="/" replace />} />
+                        <Route path="/staff" element={<ProtectedLayout><StaffDashboard /></ProtectedLayout>} />
+                        <Route path="/tasks" element={<ProtectedLayout><TasksPage /></ProtectedLayout>} />
+                        <Route path="/messages" element={<ProtectedLayout><MessagesPage /></ProtectedLayout>} />
+                        <Route path="/clients" element={<ProtectedLayout><Clients /></ProtectedLayout>} />
+                        <Route path="/clients/:id" element={<ProtectedLayout><ClientDetails /></ProtectedLayout>} />
+                        <Route path="/products" element={<ProtectedLayout><Products /></ProtectedLayout>} />
+                        <Route path="/files" element={<ProtectedLayout><FilesPage /></ProtectedLayout>} />
+                        <Route path="/projects" element={<ProtectedLayout><Projects /></ProtectedLayout>} />
+                        <Route path="/quotations" element={<ProtectedLayout><Quotations /></ProtectedLayout>} />
+                        <Route path="/invoices" element={<ProtectedLayout><Invoices /></ProtectedLayout>} />
+                        <Route path="/expenses" element={<ProtectedLayout><Expenses /></ProtectedLayout>} />
+                        <Route path="/reports" element={<ProtectedLayout><Reports /></ProtectedLayout>} />
+                        <Route path="/settings" element={<ProtectedLayout><Settings /></ProtectedLayout>} />
+                        <Route path="/calendar" element={<ProtectedLayout><CalendarPage /></ProtectedLayout>} />
+                        <Route path="/help" element={<ProtectedLayout><Help /></ProtectedLayout>} />
+                        
+                        <Route path="*" element={<ProtectedLayout><NotFound /></ProtectedLayout>} />
+                      </Routes>
                     </BrowserRouter>
                   </ProductsProvider> {/* Closed ProductsProvider */}
                 </NotificationsProvider> {/* Closed NotificationsProvider */}

@@ -94,18 +94,26 @@ export const generatePDF = async ({
     doc.setFillColor(248, 250, 252);
     doc.rect(0, 0, 210, headerBgHeight, "F");
 
+    let logoDrawn = false;
+
     // Add Logo if exists (now that background is drawn)
     if (hasLogo) {
         try {
             doc.addImage(companyDetails.logo!, jsPDFFormat, 14, 10, finalWidth, finalHeight);
+            logoDrawn = true;
         } catch (e) {
             // Fallback
-            doc.addImage(companyDetails.logo!, 14, 10, 20, 20);
-            logoHeight = 20;
+            try {
+                doc.addImage(companyDetails.logo!, 14, 10, 20, 20);
+                logoHeight = 20;
+                logoDrawn = true;
+            } catch (e2) {
+                console.error("Fallback addImage failed", e2);
+            }
         }
     }
 
-    if (!hasLogo) {
+    if (!logoDrawn) {
         // Company Name
         doc.setFontSize(22);
         doc.setTextColor(COLOR_PRIMARY[0], COLOR_PRIMARY[1], COLOR_PRIMARY[2]);
@@ -299,8 +307,8 @@ export const generatePDF = async ({
             };
         }
 
-        // Cleanup after a delay to ensure PDF is loaded
-        setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
+        // Cleanup after a delay to ensure PDF is loaded completely in the new tab
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
     } else {
         // Robust sanitization: remove any existing .pdf extension and illegal characters
         const sanitizedBase = filename

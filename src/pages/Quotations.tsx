@@ -37,6 +37,7 @@ export default function Quotations() {
   const { companyDetails } = useCompany();
   const { user } = useAuth();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [editingQuotation, setEditingQuotation] = useState<Quotation | null>(null);
 
   // Status Update State
   const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false);
@@ -100,9 +101,15 @@ export default function Quotations() {
   const handleDownloadPDF = async (quote: Quotation, action: 'download' | 'preview' | 'print' | 'email' = 'download') => {
     if (!quote.client) return;
 
-    const items = typeof quote.items === 'string'
+    const rawItems = typeof quote.items === 'string'
       ? JSON.parse(quote.items)
       : (quote.items || []);
+
+    const items = rawItems.map((item: any) => ({
+      ...item,
+      price: Number(item.price ?? item.rate ?? item.amount ?? 0),
+      quantity: Number(item.quantity ?? 1)
+    }));
 
     // Calculate totals
     // Calculate totals with safe rounding
@@ -175,7 +182,10 @@ export default function Quotations() {
           <h1 className="text-2xl font-bold tracking-tight">Quotations</h1>
           <p className="text-muted-foreground text-sm mt-1">Create and manage client quotations</p>
         </div>
-        <Button className="gap-2" onClick={() => setIsCreateDialogOpen(true)}>
+        <Button className="gap-2" onClick={() => {
+          setEditingQuotation(null);
+          setIsCreateDialogOpen(true);
+        }}>
           <Plus className="h-4 w-4" /> New Quotation
         </Button>
       </div>
@@ -230,9 +240,12 @@ export default function Quotations() {
                     <td className="py-3.5 px-5 text-muted-foreground cursor-pointer">{q.title}</td>
                     <td className="py-3.5 px-5 font-semibold cursor-pointer">{formatAmount(q.amount)}</td>
                     <td className="py-3.5 px-5 cursor-pointer">
-                      <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${config.className}`}>
-                        <StatusIcon className="h-3 w-3" />
-                        {q.status}
+                      <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${statusConfig[q.status || 'Draft']?.className || "bg-muted text-muted-foreground"}`}>
+                        {(() => {
+                          const StatusIcon = statusConfig[q.status || 'Draft']?.icon || FileText;
+                          return <StatusIcon className="h-3.5 w-3.5" />;
+                        })()}
+                        {q.status || 'Draft'}
                       </span>
                     </td>
                     <td className="py-3.5 px-5 text-muted-foreground cursor-pointer">{q.validUntil ? new Date(q.validUntil).toLocaleDateString() : '-'}</td>
@@ -263,6 +276,12 @@ export default function Quotations() {
                           }}>
                             <Pencil className="mr-2 h-4 w-4" /> Edit Status
                           </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => {
+                            setEditingQuotation(q);
+                            setIsCreateDialogOpen(true);
+                          }}>
+                            <Pencil className="mr-2 h-4 w-4" /> Edit Content
+                          </DropdownMenuItem>
                           {user?.role === 'super_admin' && (
                             <DropdownMenuItem onClick={() => handleDeleteQuotation(q.id)} className="text-destructive focus:text-destructive">
                               <Trash2 className="mr-2 h-4 w-4" /> Delete
@@ -278,7 +297,12 @@ export default function Quotations() {
           </table>
         </div>
       </div>
-      <CreateQuotationDialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen} onQuotationCreated={loadQuotations} />
+      <CreateQuotationDialog
+        open={isCreateDialogOpen}
+        onOpenChange={setIsCreateDialogOpen}
+        onQuotationCreated={loadQuotations}
+        quotation={editingQuotation || undefined}
+      />
 
       <Dialog open={isStatusDialogOpen} onOpenChange={setIsStatusDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">

@@ -15,7 +15,7 @@ import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { Plus, Trash2, Receipt } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
-import { InvoiceItem, Client } from "@/types";
+import { InvoiceItem, Client, Quotation } from "@/types";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface CreateQuotationDialogProps {
@@ -23,9 +23,10 @@ interface CreateQuotationDialogProps {
     onOpenChange: (open: boolean) => void;
     onQuotationCreated: () => void;
     clientId?: string;
+    quotation?: Quotation;
 }
 
-export function CreateQuotationDialog({ open, onOpenChange, onQuotationCreated, clientId }: CreateQuotationDialogProps) {
+export function CreateQuotationDialog({ open, onOpenChange, onQuotationCreated, clientId, quotation }: CreateQuotationDialogProps) {
     const { user } = useAuth();
     const [isLoading, setIsLoading] = useState(false);
     const [clients, setClients] = useState<Client[]>([]);
@@ -37,17 +38,40 @@ export function CreateQuotationDialog({ open, onOpenChange, onQuotationCreated, 
         title: "",
         validUntil: "",
         vatRate: 0,
-        showVat: true
+        showVat: true,
+        status: "Draft" as Quotation['status']
     });
 
     useEffect(() => {
         if (open) {
             loadClients();
-            if (clientId) {
-                setFormData(prev => ({ ...prev, clientId }));
+            if (quotation) {
+                setFormData({
+                    clientId: quotation.clientId,
+                    title: quotation.title,
+                    validUntil: new Date(quotation.validUntil).toISOString().split('T')[0],
+                    vatRate: quotation.vatRate || 0,
+                    showVat: quotation.showVat ?? true,
+                    status: quotation.status
+                });
+                const parsedItems = typeof quotation.items === 'string'
+                    ? JSON.parse(quotation.items)
+                    : (quotation.items || []);
+                const normalizedItems = parsedItems.map((item: any) => ({
+                    ...item,
+                    price: Number(item.price ?? item.rate ?? item.amount ?? 0),
+                    quantity: Number(item.quantity ?? 1)
+                }));
+                setItems(normalizedItems.length > 0 ? normalizedItems : [{ description: "", quantity: 1, price: 0 }]);
+            } else if (clientId) {
+                setFormData({ clientId, title: "", validUntil: "", vatRate: 0, showVat: true, status: "Draft" });
+                setItems([{ description: "", quantity: 1, price: 0 }]);
+            } else {
+                setFormData({ clientId: "", title: "", validUntil: "", vatRate: 0, showVat: true, status: "Draft" });
+                setItems([{ description: "", quantity: 1, price: 0 }]);
             }
         }
-    }, [open, clientId]);
+    }, [open, clientId, quotation]);
 
     const loadClients = async () => {
         try {
@@ -87,25 +111,32 @@ export function CreateQuotationDialog({ open, onOpenChange, onQuotationCreated, 
 
         try {
             const totalAmount = calculateTotal();
-            await api.quotations.create({
+            const payload = {
                 clientId: formData.clientId,
                 title: formData.title,
                 amount: totalAmount,
-                status: "Draft",
+                status: formData.status,
                 validUntil: new Date(formData.validUntil).toISOString(),
                 vatRate: formData.vatRate,
                 items: items,
-                createdById: user?.id,
                 showVat: formData.showVat
-            });
-            toast.success("Quotation created successfully");
+            };
+
+            if (quotation) {
+                await api.quotations.update(quotation.id, payload);
+                toast.success("Quotation updated successfully");
+            } else {
+                await api.quotations.create({
+                    ...payload,
+                    createdById: user?.id,
+                });
+                toast.success("Quotation created successfully");
+            }
             onQuotationCreated();
-            setFormData({ clientId: "", title: "", validUntil: "", vatRate: 0, showVat: true });
-            setItems([{ description: "", quantity: 1, price: 0 }]);
             onOpenChange(false);
         } catch (error) {
             console.error(error);
-            toast.error("Failed to create quotation");
+            toast.error(quotation ? "Failed to update quotation" : "Failed to create quotation");
         } finally {
             setIsLoading(false);
         }
@@ -115,9 +146,9 @@ export function CreateQuotationDialog({ open, onOpenChange, onQuotationCreated, 
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
-                    <DialogTitle>Create New Quotation</DialogTitle>
+                    <DialogTitle>{quotation ? "Edit Quotation" : "Create New Quotation"}</DialogTitle>
                     <DialogDescription>
-                        Create a new quotation for a potential client with detailed estimates.
+                        {quotation ? "Update the details of your existing quotation." : "Create a new quotation for a potential client with detailed estimates."}
                     </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="grid gap-6 py-4">
@@ -256,7 +287,7 @@ export function CreateQuotationDialog({ open, onOpenChange, onQuotationCreated, 
 
                     <DialogFooter>
                         <Button type="submit" className="w-full sm:w-auto" disabled={isLoading || !formData.clientId}>
-                            {isLoading ? "Creating..." : "Generate Quotation"}
+                            {isLoading ? (quotation ? "Updating..." : "Creating...") : (quotation ? "Update Quotation" : "Generate Quotation")}
                         </Button>
                     </DialogFooter>
                 </form>

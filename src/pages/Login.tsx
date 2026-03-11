@@ -14,7 +14,12 @@ export default function Login() {
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
 
-    const { login } = useAuth();
+    const { login, user, loading: authLoading } = useAuth();
+
+    // Redirect if already logged in
+    if (!authLoading && user) {
+        navigate("/");
+    }
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -52,7 +57,12 @@ export default function Login() {
                             />
                         </div>
                         <div className="space-y-2">
-                            <Label htmlFor="password">Password</Label>
+                            <div className="flex items-center justify-between">
+                                <Label htmlFor="password">Password</Label>
+                                <Link to="#" className="text-sm text-primary hover:underline">
+                                    Forgot Password?
+                                </Link>
+                            </div>
                             <Input
                                 id="password"
                                 type="password"

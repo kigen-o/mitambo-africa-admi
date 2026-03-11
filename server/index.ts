@@ -37,49 +37,48 @@ const app = express();
 const prisma = new PrismaClient();
 console.log("Prisma Client initialized for MySQL");
 
-// Test connection
-(async () => {
-    try {
-        await prisma.$connect();
-        console.log("Successfully connected to database");
-    } catch (e) {
-        console.error("Failed to connect to database:", e);
-        process.exit(1);
-    }
-})();
+// Test connection logic moved below seedSuperAdmin
 
 const seedSuperAdmin = async () => {
     try {
-        const email = "kigen@mitambo.africa"; // Using a valid email format
-        const existingUser = await prisma.user.findFirst({
-            where: {
-                OR: [
-                    { email: email },
-                    { role: 'super_admin' }
-                ]
-            }
-        });
-
-        if (!existingUser) {
-            console.log("Seeding Super Admin user...");
-            await prisma.user.create({
-                data: {
-                    email: email,
-                    password: "1234567887654321", // In production, hash this!
-                    role: 'super_admin',
-                    profile: {
-                        create: {
-                            fullName: "kIGEN"
-                        }
+        const email = "admin@mitambo.africa";
+        const password = "Admin123!";
+        
+        console.log("Upserting Super Admin user...");
+        await prisma.user.upsert({
+            where: { email: email },
+            update: {
+                password: password,
+                role: 'super_admin'
+            },
+            create: {
+                email: email,
+                password: password, // In production, hash this!
+                role: 'super_admin',
+                profile: {
+                    create: {
+                        fullName: "Super Admin"
                     }
                 }
-            });
-            console.log("Super Admin seeded successfully.");
-        }
+            }
+        });
+        console.log("Super Admin verified/seeded successfully.");
     } catch (error) {
         console.error("Failed to seed Super Admin:", error);
     }
 };
+
+// Test connection and seed data
+(async () => {
+    try {
+        await prisma.$connect();
+        console.log("Successfully connected to database");
+        await seedSuperAdmin();
+    } catch (e) {
+        console.error("Failed to connect to database or seed:", e);
+        process.exit(1);
+    }
+})();
 
 console.log("Database URL:", process.env.DATABASE_URL?.replace(/:[^:]*@/, ':****@')); // Hide password in logs
 const PORT = process.env.PORT || 3001;
@@ -313,9 +312,13 @@ app.post('/api/invoices', async (req, res) => {
 
 app.put('/api/invoices/:id', async (req, res) => {
     try {
+        const data = { ...req.body };
+        if (data.items && typeof data.items !== 'string') {
+            data.items = JSON.stringify(data.items);
+        }
         const invoice = await prisma.invoice.update({
             where: { id: req.params.id },
-            data: req.body
+            data
         });
         res.json(invoice);
     } catch (error) {
@@ -453,9 +456,16 @@ app.post('/api/quotations', async (req, res) => {
 
 app.put('/api/quotations/:id', async (req, res) => {
     try {
+        const data = { ...req.body };
+        if (data.items && typeof data.items !== 'string') {
+            data.items = JSON.stringify(data.items);
+        }
+        if (data.validUntil) {
+            data.validUntil = new Date(data.validUntil);
+        }
         const quotation = await prisma.quotation.update({
             where: { id: req.params.id },
-            data: req.body
+            data
         });
         res.json(quotation);
     } catch (error) {
