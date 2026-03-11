@@ -1,6 +1,5 @@
 ---
 deployment:
   tasks:
-    - export DEPLOYPATH=/home1/kigsilco/public_html/admin.mitambo.africa
-    - /bin/mkdir -p $DEPLOYPATH
-    - /bin/cp -rp . $DEPLOYPATH/
+    - export DEPLOYPATH=/home1/kigsilco/admin.mitambo.africa
+    - /bin/cp -R * $DEPLOYPATH/ 2>/dev/null; /bin/true
