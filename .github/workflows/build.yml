@@ -24,6 +24,8 @@ jobs:
       run: npm ci
 
     - name: Build
+      env:
+        VITE_API_URL: ${{ vars.VITE_API_URL || secrets.VITE_API_URL || '' }}
       run: npm run build
 
     - name: Copy deployment files into dist
