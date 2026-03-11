@@ -1,13 +1,16 @@
 RewriteEngine On
 RewriteBase /
 
-# Handle React Router — serve index.html for all non-file requests
+# 1. First, proxy any /api requests strictly to the NodeJS backend
+# Assuming the Node server is running on port 3001 in production (adjust port if cPanel assigns a different one)
+<IfModule mod_rewrite.c>
+  RewriteRule ^api/(.*)$ http://127.0.0.1:3001/api/$1 [P,L]
+</IfModule>
+
+# If mod_proxy/mod_rewrite proxying [P] isn't enabled on cPanel, at least stop React from catching /api
+RewriteRule ^api/ - [L]
+
+# 2. Then, handle React Router — serve index.html for all non-file frontend requests
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^ index.html [QSA,L]
-
-# Proxy /api requests to Node.js backend
-<IfModule mod_proxy.c>
-  ProxyPass /api http://127.0.0.1:3001/api
-  ProxyPassReverse /api http://127.0.0.1:3001/api
-</IfModule>
