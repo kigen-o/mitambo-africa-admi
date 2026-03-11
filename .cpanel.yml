@@ -1,0 +1,6 @@
+---
+deployment:
+  tasks:
+    - export DEPLOYPATH=/home1/kigsilco/public_html/admin.mitambo.africa
+    - /bin/mkdir -p $DEPLOYPATH
+    - /bin/cp -rp . $DEPLOYPATH/

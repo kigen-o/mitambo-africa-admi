@@ -26,6 +26,9 @@ jobs:
     - name: Build
       run: npm run build
 
+    - name: Copy .cpanel.yml into dist
+      run: cp .cpanel.yml dist/.cpanel.yml
+
     - name: Deploy to production branch
       uses: peaceiris/actions-gh-pages@v4
       with:
