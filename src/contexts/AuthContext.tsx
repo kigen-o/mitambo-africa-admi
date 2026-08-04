@@ -33,9 +33,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         const storedUser = localStorage.getItem('user');
 
         if (token && storedUser) {
-            setUser(JSON.parse(storedUser));
+            try {
+                setUser(JSON.parse(storedUser));
+            } catch {
+                localStorage.removeItem('auth_token');
+                localStorage.removeItem('user');
+            }
         }
         setLoading(false);
+
+        const clearExpiredSession = () => setUser(null);
+        window.addEventListener('auth-expired', clearExpiredSession);
+        return () => window.removeEventListener('auth-expired', clearExpiredSession);
     }, []);
 
     const login = async (credentials: LoginCredentials) => {
@@ -46,7 +55,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     const signup = async (userData: SignupData) => {
-        const data = await api.auth.signup(userData);
+        await api.auth.signup(userData);
         // Automatically login after signup (optional, but convenient)
         // For now, just return, or we can set user if the backend returns a session
         // My server/index.ts signup returns { user }, no session.

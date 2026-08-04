@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { toast } from "sonner";
 
 export default function Login() {
+    const publicSignupEnabled = process.env.NEXT_PUBLIC_ALLOW_PUBLIC_SIGNUP === "true";
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [loading, setLoading] = useState(false);
@@ -77,12 +78,14 @@ export default function Login() {
                     </form>
                 </CardContent>
                 <CardFooter className="flex flex-col space-y-2 text-center text-sm">
-                    <div className="text-muted-foreground">
-                        Don't have an account?{" "}
-                        <Link to="/signup" className="text-primary hover:underline">
-                            Sign up
-                        </Link>
-                    </div>
+                    {publicSignupEnabled && (
+                        <div className="text-muted-foreground">
+                            Don't have an account?{" "}
+                            <Link to="/signup" className="text-primary hover:underline">
+                                Sign up
+                            </Link>
+                        </div>
+                    )}
                 </CardFooter>
             </Card>
         </div>

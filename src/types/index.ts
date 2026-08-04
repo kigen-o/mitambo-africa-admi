@@ -83,7 +83,7 @@ export interface Invoice {
     title: string;
     amount: number;
     paid: number;
-    status: 'Paid' | 'Partial' | 'Unpaid' | 'Overdue' | 'Draft';
+    status: 'Paid' | 'Partial' | 'Unpaid' | 'Overdue' | 'Draft' | 'Pending';
     dueDate: string;
     vatRate?: number;
     items?: InvoiceItem[];

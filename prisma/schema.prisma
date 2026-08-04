@@ -7,8 +7,9 @@ generator client {
 // }
 
 datasource db {
-  provider = "mysql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
@@ -83,6 +84,7 @@ model Product {
   price       Float
   stock       Int      @default(0)
   category    String?
+  unit        String   @default("per project")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
@@ -124,7 +126,7 @@ model Settings {
   companyEmail    String?
   companyPhone    String?
   companyAddress  String?
-  companyLogo     String?  @db.LongText
+  companyLogo     String?  @db.Text
   companyWebsite  String?
   companySubtitle String?
   mpesaPaybill    String?

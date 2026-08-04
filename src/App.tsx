@@ -36,6 +36,7 @@ import Expenses from "./views/Expenses";
 import Help from "./views/Help";
 
 const queryClient = new QueryClient();
+const publicSignupEnabled = process.env.NEXT_PUBLIC_ALLOW_PUBLIC_SIGNUP === "true";
 
 const App = () => {
   return (
@@ -43,8 +44,8 @@ const App = () => {
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <CurrencyProvider>
-            <CompanyProvider>
-              <AuthProvider>
+            <AuthProvider>
+              <CompanyProvider>
                 <NotificationsProvider> {/* Added NotificationsProvider */}
                   <ProductsProvider> {/* Added ProductsProvider */}
                     <Toaster />
@@ -53,7 +54,10 @@ const App = () => {
                       <Routes>
                         {/* Public Routes */}
                         <Route path="/login" element={<Login />} />
-                        <Route path="/signup" element={<Signup />} />
+                        <Route
+                          path="/signup"
+                          element={publicSignupEnabled ? <Signup /> : <Navigate to="/login" replace />}
+                        />
                         
                         {/* Protected Routes directly wrapped in layout */}
                         <Route path="/" element={<ProtectedLayout><Dashboard /></ProtectedLayout>} />
@@ -79,8 +83,8 @@ const App = () => {
                     </BrowserRouter>
                   </ProductsProvider> {/* Closed ProductsProvider */}
                 </NotificationsProvider> {/* Closed NotificationsProvider */}
-              </AuthProvider>
-            </CompanyProvider>
+              </CompanyProvider>
+            </AuthProvider>
           </CurrencyProvider>
         </TooltipProvider>
       </QueryClientProvider>

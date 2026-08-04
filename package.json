@@ -11,7 +11,7 @@
     "preview": "next start -p 4173",
     "test": "vitest run",
     "test:watch": "vitest",
-    "server": "nodemon --exec npx tsx server/index.ts"
+    "migrate:supabase-data": "tsx scripts/migrate-sqlite-to-supabase.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

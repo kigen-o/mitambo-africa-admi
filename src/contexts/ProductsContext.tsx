@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'; // Added useEffect
 import { api } from '@/lib/api'; // Added api import
 import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
 
 export interface Product {
     id: string;
@@ -30,12 +31,18 @@ export const useProducts = () => {
 };
 
 export const ProductsProvider = ({ children }: { children: ReactNode }) => {
+    const { user, loading: authLoading } = useAuth();
     const [products, setProducts] = useState<Product[]>([]);
     const [isSyncing, setIsSyncing] = useState(false);
 
     useEffect(() => {
+        if (authLoading) return;
+        if (!user) {
+            setProducts([]);
+            return;
+        }
         loadProducts();
-    }, []);
+    }, [authLoading, user]);
 
     const loadProducts = async () => {
         try {

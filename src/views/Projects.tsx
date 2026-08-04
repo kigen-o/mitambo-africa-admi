@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { CreateProjectDialog } from "@/components/CreateProjectDialog";
 import { Project, Task } from "@/types";
+import { useAuth } from "@/contexts/AuthContext";
 
 const stageColors: Record<string, string> = {
   "Creative Brief": "bg-accent text-accent-foreground",
@@ -23,6 +24,8 @@ const priorityColors: Record<string, string> = {
 };
 
 export default function Projects() {
+  const { user } = useAuth();
+  const canManageProjects = user?.role === 'admin' || user?.role === 'super_admin';
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -57,16 +60,20 @@ export default function Projects() {
           <h1 className="text-2xl font-bold tracking-tight">Projects</h1>
           <p className="text-muted-foreground text-sm mt-1">Track and manage all agency projects</p>
         </div>
-        <Button className="gap-2" onClick={() => setIsDialogOpen(true)}>
-          <Plus className="h-4 w-4" /> New Project
-        </Button>
+        {canManageProjects && (
+          <Button className="gap-2" onClick={() => setIsDialogOpen(true)}>
+            <Plus className="h-4 w-4" /> New Project
+          </Button>
+        )}
       </div>
 
-      <CreateProjectDialog
-        open={isDialogOpen}
-        onOpenChange={setIsDialogOpen}
-        onProjectCreated={loadProjects}
-      />
+      {canManageProjects && (
+        <CreateProjectDialog
+          open={isDialogOpen}
+          onOpenChange={setIsDialogOpen}
+          onProjectCreated={loadProjects}
+        />
+      )}
 
       <div className="flex items-center gap-2 rounded-lg bg-card border border-border px-3 py-2 w-full max-w-md">
         <Search className="h-4 w-4 text-muted-foreground" />

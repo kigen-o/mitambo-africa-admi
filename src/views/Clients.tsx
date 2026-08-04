@@ -7,6 +7,7 @@ import { ClientDialog } from "@/components/ClientDialog";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { Client } from "@/types";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,6 +16,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 export default function Clients() {
+  const { user } = useAuth();
+  const canManageClients = user?.role === 'admin' || user?.role === 'super_admin';
   const [clients, setClients] = useState<(Omit<Client, 'projects'> & { initials?: string, projects?: number })[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -77,17 +80,21 @@ export default function Clients() {
           <h1 className="text-2xl font-bold tracking-tight">Clients</h1>
           <p className="text-muted-foreground text-sm mt-1">Manage your client relationships</p>
         </div>
-        <Button className="gap-2" onClick={() => setIsAddDialogOpen(true)}>
-          <Plus className="h-4 w-4" /> Add Client
-        </Button>
+        {canManageClients && (
+          <Button className="gap-2" onClick={() => setIsAddDialogOpen(true)}>
+            <Plus className="h-4 w-4" /> Add Client
+          </Button>
+        )}
       </div>
 
-      <ClientDialog
-        open={isAddDialogOpen}
-        onOpenChange={setIsAddDialogOpen}
-        onSubmit={handleAddClient}
-        title="Add New Client"
-      />
+      {canManageClients && (
+        <ClientDialog
+          open={isAddDialogOpen}
+          onOpenChange={setIsAddDialogOpen}
+          onSubmit={handleAddClient}
+          title="Add New Client"
+        />
+      )}
 
       {/* Search */}
       <div className="flex items-center gap-2 rounded-lg bg-card border border-border px-3 py-2 w-full max-w-md">
@@ -124,7 +131,7 @@ export default function Clients() {
                 </div>
               </div>
 
-              <div onClick={(e) => e.stopPropagation()}>
+              {canManageClients && <div onClick={(e) => e.stopPropagation()}>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <button className="rounded-lg p-1.5 opacity-0 group-hover:opacity-100 hover:bg-muted transition-all">
@@ -140,7 +147,7 @@ export default function Clients() {
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
-              </div>
+              </div>}
             </div>
 
             <div className="mt-4 space-y-2 text-sm">

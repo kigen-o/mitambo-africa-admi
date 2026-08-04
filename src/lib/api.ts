@@ -1,44 +1,49 @@
-// Use the separately deployed API in production and the local Express server in development.
-const API_URL = process.env.NEXT_PUBLIC_API_URL
-    || (process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:3001/api');
+import { User, Client, Invoice, Quotation, LoginCredentials, SignupData, Product, BackendSettings, UserUpdateDTO, DashboardStats, Task, Project, Expense, Communication, File as StoredFile } from "@/types";
 
-import { User, Client, Invoice, Quotation, LoginCredentials, SignupData, Product, BackendSettings, UserUpdateDTO, DashboardStats, Task, Project, Expense, Communication } from "@/types";
+// The backend ships with this Next.js application. Keeping every request on
+// the same origin avoids CORS failures and stale external API configuration.
+const API_URL = '/api';
 
 export async function apiRequest<T = unknown>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
-    const storedUser = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
-    let userRole = '';
-    let userId = '';
-    if (storedUser) {
+
+    const headers = new Headers(options.headers);
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+    if (!(options.body instanceof FormData) && !headers.has('Content-Type')) {
+        headers.set('Content-Type', 'application/json');
+    }
+
+    let response: Response;
+    try {
+        response = await fetch(`${API_URL}${endpoint}`, {
+            ...options,
+            headers,
+        });
+    } catch {
+        throw new Error('Unable to reach the application server. Please check your connection and try again.');
+    }
+
+    const text = await response.text();
+    let data: unknown = {};
+    if (text) {
         try {
-            const user = JSON.parse(storedUser);
-            userRole = user.role || '';
-            userId = user.id || '';
+            data = JSON.parse(text);
         } catch {
-            // Ignore malformed cached user data.
+            data = { error: text };
         }
     }
 
-    const headers = {
-        'Content-Type': 'application/json',
-        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-        ...(userRole ? { 'X-User-Role': userRole } : {}),
-        ...(userId ? { 'X-User-Id': userId } : {}),
-        ...options.headers,
-    };
-
-    const response = await fetch(`${API_URL}${endpoint}`, {
-        ...options,
-        headers,
-    });
-
-    const data = await response.json();
-
     if (!response.ok) {
-        throw new Error(data.error || 'API request failed');
+        if (response.status === 401 && typeof window !== 'undefined') {
+            localStorage.removeItem('auth_token');
+            localStorage.removeItem('user');
+            window.dispatchEvent(new Event('auth-expired'));
+        }
+        const errorData = data as { error?: string };
+        throw new Error(errorData.error || 'API request failed');
     }
 
-    return data;
+    return data as T;
 }
 
 export const api = {
@@ -152,31 +157,11 @@ export const api = {
         }),
     },
     files: {
-        list: () => apiRequest<any[]>('/files'),
-        upload: (formData: FormData) => {
-            const token = localStorage.getItem('auth_token');
-            const storedUser = localStorage.getItem('user');
-            let userRole = '';
-            let userId = '';
-            if (storedUser) {
-                try {
-                    const user = JSON.parse(storedUser);
-                    userRole = user.role || '';
-                    userId = user.id || '';
-                } catch {
-                    // Ignore malformed cached user data.
-                }
-            }
-            return fetch(`${API_URL}/files`, {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-                    ...(userRole ? { 'X-User-Role': userRole } : {}),
-                    ...(userId ? { 'X-User-Id': userId } : {}),
-                }
-            }).then(res => res.json());
-        },
+        list: () => apiRequest<StoredFile[]>('/files'),
+        upload: (formData: FormData) => apiRequest<StoredFile[]>('/files', {
+            method: 'POST',
+            body: formData,
+        }),
         delete: (id: string) => apiRequest<{ success: boolean }>(`/files/${id}`, {
             method: 'DELETE',
         }),

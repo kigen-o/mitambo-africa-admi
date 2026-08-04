@@ -1,73 +1,67 @@
-# Welcome to your Lovable project
+# Mitambo Africa Admin
 
-## Project info
+Next.js 15 admin application with same-origin API route handlers and a
+Supabase PostgreSQL backend. Browser requests go to `/api`; Supabase secret
+credentials are used only by the server route handlers.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
-
-## How can I edit this code?
-
-There are several ways of editing your application.
-
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
+## Local setup
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+npm ci
+cp .env.example .env
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+The application runs at <http://localhost:8080>.
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+Required server environment variables:
 
-**Use GitHub Codespaces**
+- `SUPABASE_URL`
+- `SUPABASE_SECRET_KEY`
+- `SESSION_SECRET` (at least 32 random characters)
+- `SUPER_ADMIN_EMAIL`
+- `SUPER_ADMIN_PASSWORD`
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+The first successful login with the configured super-admin credentials creates
+that account when it does not yet exist. Public signup is disabled unless both
+`ALLOW_PUBLIC_SIGNUP` and `NEXT_PUBLIC_ALLOW_PUBLIC_SIGNUP` are explicitly set
+to `true`.
 
-## What technologies are used for this project?
+## Database
 
-This project is built with:
+Supabase migrations are in `supabase/migrations`. To link and update a project:
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+```sh
+npx supabase link --project-ref YOUR_PROJECT_REF
+npx supabase db push --linked
+```
 
-## How can I deploy this project?
+The Data API remains closed to browser roles by RLS. The server's service role
+has access only to the application's existing public tables.
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+To inspect the legacy SQLite record counts without making a remote connection:
 
-## Can I connect a custom domain to my Lovable project?
+```sh
+npm run migrate:supabase-data
+```
 
-Yes, you can!
+Applying the import requires `--apply`, an exact
+`MIGRATION_DESTINATION_PROJECT_REF`, and the explicit confirmation value shown
+by the script. Set `SQLITE_SOURCE_PATH` if the source file is elsewhere. The
+importer refuses to overwrite existing business rows, preserves IDs and
+relationships, converts dates, and hashes legacy plaintext passwords.
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+## Vercel deployment
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+Set the five required server variables above in the Vercel project for
+Production and Preview, then deploy from the repository root. Do not add
+`SUPABASE_SECRET_KEY`, database passwords, or personal access tokens to any
+`NEXT_PUBLIC_*` variable.
+
+Useful checks:
+
+```sh
+npm test
+npx tsc --noEmit
+npm run build
+```

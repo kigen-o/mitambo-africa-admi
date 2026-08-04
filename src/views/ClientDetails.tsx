@@ -35,6 +35,7 @@ import { CreateInvoiceDialog } from "@/components/CreateInvoiceDialog";
 import { CreateQuotationDialog } from "@/components/CreateQuotationDialog";
 import { ClientDialog } from "@/components/ClientDialog";
 import { CommunicationDialog } from "@/components/CommunicationDialog";
+import { useAuth } from "@/contexts/AuthContext";
 
 const commIcons = {
     email: Mail,
@@ -43,6 +44,8 @@ const commIcons = {
 };
 
 export default function ClientDetails() {
+    const { user } = useAuth();
+    const canManageClients = user?.role === 'admin' || user?.role === 'super_admin';
     const { id } = useParams();
     const navigate = useNavigate();
     const { formatAmount } = useCurrency();
@@ -318,26 +321,26 @@ export default function ClientDetails() {
                         </div>
                     </div>
                 </div>
-                <div className="flex gap-2">
+                {canManageClients && <div className="flex gap-2">
                     <Button variant="outline" onClick={() => setIsClientDialogOpen(true)}>Edit Profile</Button>
                     <Button onClick={() => setIsProjectDialogOpen(true)}>New Project</Button>
-                </div>
+                </div>}
             </div>
 
-            <ClientDialog
+            {canManageClients && <ClientDialog
                 open={isClientDialogOpen}
                 onOpenChange={setIsClientDialogOpen}
                 onSubmit={handleUpdateClient}
                 initialData={client}
                 title="Edit Client Profile"
-            />
+            />}
 
-            <CreateProjectDialog
+            {canManageClients && <CreateProjectDialog
                 open={isProjectDialogOpen}
                 onOpenChange={setIsProjectDialogOpen}
                 onProjectCreated={loadClient}
                 clientId={id}
-            />
+            />}
 
             <Tabs defaultValue="overview" className="w-full">
                 <TabsList className="w-full justify-start border-b rounded-none h-auto p-0 bg-transparent space-x-6 overflow-x-auto">
@@ -517,14 +520,14 @@ export default function ClientDetails() {
                                                 <span className="text-xs px-2 py-1 rounded-full bg-primary/10 text-primary">{p.priority}</span>
                                                 <p className="text-xs text-muted-foreground mt-1">Created: {new Date(p.createdAt).toLocaleDateString()}</p>
                                             </div>
-                                            <Button
+                                            {canManageClients && <Button
                                                 variant="ghost"
                                                 size="icon"
                                                 className="text-destructive hover:text-destructive hover:bg-destructive/10"
                                                 onClick={() => handleDeleteProject(p.id)}
                                             >
                                                 <Trash2 className="h-4 w-4" />
-                                            </Button>
+                                            </Button>}
                                         </div>
                                     </div>
                                 ))}
@@ -576,9 +579,9 @@ export default function ClientDetails() {
                                                         }}>
                                                             <Pencil className="h-3.5 w-3.5" />
                                                         </Button>
-                                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => handleDeleteCommLog(comm.id)}>
+                                                        {canManageClients && <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => handleDeleteCommLog(comm.id)}>
                                                             <Trash2 className="h-3.5 w-3.5" />
-                                                        </Button>
+                                                        </Button>}
                                                     </div>
                                                 </div>
                                             </div>

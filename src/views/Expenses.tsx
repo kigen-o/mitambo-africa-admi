@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Search, Trash2, Calendar as CalendarIcon } from "lucide-react";
+import { Plus, Search, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -33,9 +33,12 @@ import { useCurrency } from "@/contexts/CurrencyContext";
 import { toast } from "sonner";
 import { Expense } from "@/types";
 import { format } from "date-fns";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function Expenses() {
     const { formatAmount } = useCurrency();
+    const { user } = useAuth();
+    const canManageExpenses = user?.role === 'admin' || user?.role === 'super_admin';
     const [expenses, setExpenses] = useState<Expense[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
@@ -129,7 +132,7 @@ export default function Expenses() {
                     <h1 className="text-3xl font-bold tracking-tight">Expenses</h1>
                     <p className="text-muted-foreground mt-2">Track and manage business expenses.</p>
                 </div>
-                <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+                {canManageExpenses && <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
                     <DialogTrigger asChild>
                         <Button className="gap-2">
                             <Plus className="h-4 w-4" /> Add Expense
@@ -199,7 +202,7 @@ export default function Expenses() {
                             </DialogFooter>
                         </form>
                     </DialogContent>
-                </Dialog>
+                </Dialog>}
             </div>
 
             <div className="grid gap-4 md:grid-cols-3">
@@ -238,17 +241,17 @@ export default function Expenses() {
                                 <TableHead>Description</TableHead>
                                 <TableHead>Category</TableHead>
                                 <TableHead className="text-right">Amount</TableHead>
-                                <TableHead className="text-right">Actions</TableHead>
+                                {canManageExpenses && <TableHead className="text-right">Actions</TableHead>}
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {isLoading ? (
                                 <TableRow>
-                                    <TableCell colSpan={5} className="text-center py-8">Loading expenses...</TableCell>
+                                    <TableCell colSpan={canManageExpenses ? 5 : 4} className="text-center py-8">Loading expenses...</TableCell>
                                 </TableRow>
                             ) : filteredExpenses.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                                    <TableCell colSpan={canManageExpenses ? 5 : 4} className="text-center py-8 text-muted-foreground">
                                         No expenses found.
                                     </TableCell>
                                 </TableRow>
@@ -263,7 +266,7 @@ export default function Expenses() {
                                             </span>
                                         </TableCell>
                                         <TableCell className="text-right">{formatAmount(expense.amount)}</TableCell>
-                                        <TableCell className="text-right">
+                                        {canManageExpenses && <TableCell className="text-right">
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
@@ -272,7 +275,7 @@ export default function Expenses() {
                                             >
                                                 <Trash2 className="h-4 w-4" />
                                             </Button>
-                                        </TableCell>
+                                        </TableCell>}
                                     </TableRow>
                                 ))
                             )}

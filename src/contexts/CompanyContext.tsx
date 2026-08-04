@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
 
 export interface CompanyDetails {
     name: string;
@@ -34,11 +35,17 @@ const defaultDetails: CompanyDetails = {
 const CompanyContext = createContext<CompanyContextType | undefined>(undefined);
 
 export const CompanyProvider = ({ children }: { children: ReactNode }) => {
+    const { user, loading: authLoading } = useAuth();
     const [companyDetails, setCompanyDetails] = useState<CompanyDetails>(defaultDetails);
 
     useEffect(() => {
+        if (authLoading) return;
+        if (!user) {
+            setCompanyDetails(defaultDetails);
+            return;
+        }
         loadSettings();
-    }, []);
+    }, [authLoading, user]);
 
     const loadSettings = async () => {
         try {
