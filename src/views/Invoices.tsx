@@ -1,18 +1,23 @@
 import { useState, useEffect } from "react";
-import { useCurrency } from "@/contexts/CurrencyContext";
 import { useCompany } from "@/contexts/CompanyContext";
-import { Search, Plus, MoreVertical, Printer, Share2, FileDown, CreditCard, Eye, Pencil, Trash2 } from "lucide-react";
+import { Search, Plus, MoreVertical, Printer, Share2, FileDown, CreditCard, Eye, Pencil, Trash2, Truck, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { Invoice } from "@/types";
+import {
+  formatAmountForCurrency,
+  normalizeCurrencyCode,
+  type CurrencyCode,
+} from "@/lib/currency";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { generatePDF, generateInvoicesSummary } from "@/lib/pdfGenerator";
+import { generateInvoicesSummary } from "@/lib/pdfGenerator";
+import { generateDeliveryNoteDocument, generateInvoiceDocument } from "@/lib/invoiceDocuments";
 import { initiateSTKPush } from "@/lib/mpesa";
 import {
   Dialog,
@@ -41,7 +46,6 @@ import { useAuth } from "@/contexts/AuthContext";
 export default function Invoices() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const { formatAmount } = useCurrency();
   const { companyDetails } = useCompany();
   const { user } = useAuth();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -124,77 +128,37 @@ export default function Invoices() {
       new Date(inv.createdAt).toLocaleDateString().toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const totalRevenue = invoices.reduce((acc, inv) => acc + inv.paid, 0);
-  const totalOutstanding = invoices.reduce((acc, inv) => acc + (inv.amount - inv.paid), 0);
   const overdue = invoices.filter((inv) => inv.status === "Overdue").length;
 
+  const formatGroupedAmounts = (value: (invoice: Invoice) => number) => {
+    const totals = invoices.reduce((grouped, invoice) => {
+      const code = normalizeCurrencyCode(invoice.currency);
+      grouped.set(code, (grouped.get(code) ?? 0) + value(invoice));
+      return grouped;
+    }, new Map<CurrencyCode, number>());
+
+    if (totals.size === 0) return formatAmountForCurrency(0, "KES");
+    return Array.from(totals, ([code, amount]) =>
+      formatAmountForCurrency(amount, code),
+    ).join(" + ");
+  };
+
   const handleGeneratePDF = async (inv: Invoice, action: 'download' | 'preview' | 'print' | 'email' = 'download') => {
-    if (!inv.client) return;
-
-    const rawItems = typeof inv.items === 'string'
-      ? JSON.parse(inv.items)
-      : (inv.items || []);
-
-    const items = rawItems.map((item: any) => ({
-      ...item,
-      price: Number(item.price ?? item.rate ?? item.amount ?? 0),
-      quantity: Number(item.quantity ?? 1)
-    }));
-
-    // Calculate totals
-    // Calculate totals with safe rounding
-    const subtotal = Math.round(items.reduce((sum: number, item: any) => sum + (item.quantity * item.price), 0) * 100) / 100;
-    const vatRate = inv.vatRate || 0;
-    const vatAmount = Math.round((subtotal * (vatRate / 100)) * 100) / 100;
-    const total = Math.round((subtotal + vatAmount) * 100) / 100;
-
-    const pdfData = items.length > 0 ? items.map((item: any) => ({
-      description: item.description,
-      quantity: item.quantity,
-      price: formatAmount(item.price),
-      total: formatAmount(item.quantity * item.price)
-    })) : [{
-      description: "Service/Product",
-      quantity: 1,
-      price: formatAmount(inv.amount),
-      total: formatAmount(inv.amount)
-    }];
-
-    await generatePDF({
-      title: 'INVOICE',
-      subtitle: `Invoice #: ${inv.id}`,
-      filename: `invoice-${inv.id}`,
-      data: pdfData,
-      columns: [
-        { header: 'Description', dataKey: 'description' },
-        { header: 'Qty', dataKey: 'quantity' },
-        { header: 'Price', dataKey: 'price' },
-        { header: 'Total', dataKey: 'total' }
-      ],
-      companyDetails: {
-        name: companyDetails?.name || 'Mitambo Africa Admin',
-        address: companyDetails?.address || '',
-        email: companyDetails?.email || '',
-        phone: companyDetails?.phone || '',
-        website: companyDetails?.website || '',
-        subtitle: companyDetails?.subtitle || '',
-        logo: companyDetails?.logo || null
-      },
-      clientDetails: {
-        name: inv.client.name,
-        address: inv.client.address || '',
-        email: inv.client.email,
-        phone: inv.client.phone || ''
-      },
-      totals: [
-        { label: 'Subtotal:', value: formatAmount(subtotal || inv.amount) },
-        ...(inv.showVat !== false ? [{ label: `VAT (${vatRate}%):`, value: formatAmount(vatAmount) }] : []),
-        { label: 'Total:', value: formatAmount(inv.showVat !== false ? total : subtotal || inv.amount) }
-      ],
-      footerNote: "Thank you for your business!",
+    await generateInvoiceDocument({
+      invoice: inv,
+      companyDetails,
       action,
-      qrUrl: `https://admin.mitambo.africa/invoices/${inv.id}`,
-      createdBy: inv.user?.profile?.fullName || inv.user?.email || undefined
+    });
+  };
+
+  const handleDeliveryNote = async (
+    inv: Invoice,
+    action: 'download' | 'preview' | 'print' = 'download',
+  ) => {
+    await generateDeliveryNoteDocument({
+      invoice: inv,
+      companyDetails,
+      action,
     });
   };
 
@@ -204,14 +168,29 @@ export default function Invoices() {
       return;
     }
     toast.info("Generating report...");
-    await generateInvoicesSummary(filtered, companyDetails, formatAmount);
+    await generateInvoicesSummary(filtered, companyDetails);
     toast.success("Report downloaded");
   };
 
   const handleShareWhatsApp = (inv: Invoice) => {
-    const text = `Hi ${inv.client?.name}, here is invoice ${inv.id} for ${formatAmount(inv.amount)}. Status: ${inv.status}.`;
+    const verificationUrl = inv.verificationToken
+      ? `${window.location.origin}/verify/invoice/${encodeURIComponent(inv.verificationToken)}`
+      : "";
+    const text = `Hi ${inv.client?.name}, here is invoice ${inv.id} for ${formatAmountForCurrency(inv.amount, inv.currency)}. Status: ${inv.status}.${verificationUrl ? ` Verify it here: ${verificationUrl}` : ""}`;
     const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
     window.open(url, "_blank");
+  };
+
+  const handleOpenVerification = (inv: Invoice) => {
+    if (!inv.verificationToken) {
+      toast.error("This invoice does not have a verification code yet");
+      return;
+    }
+    window.open(
+      `/verify/invoice/${encodeURIComponent(inv.verificationToken)}`,
+      "_blank",
+      "noopener,noreferrer",
+    );
   };
 
   // Just updating the return statement to include dialog and valid handlers
@@ -240,11 +219,15 @@ export default function Invoices() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="rounded-xl bg-card border border-border p-4">
           <p className="text-sm text-muted-foreground">Total Collected</p>
-          <p className="text-xl font-bold mt-1 text-success">{formatAmount(totalRevenue)}</p>
+          <p className="text-xl font-bold mt-1 text-success">
+            {formatGroupedAmounts((invoice) => invoice.paid)}
+          </p>
         </div>
         <div className="rounded-xl bg-card border border-border p-4">
           <p className="text-sm text-muted-foreground">Outstanding</p>
-          <p className="text-xl font-bold mt-1 text-warning">{formatAmount(totalOutstanding)}</p>
+          <p className="text-xl font-bold mt-1 text-warning">
+            {formatGroupedAmounts((invoice) => invoice.amount - invoice.paid)}
+          </p>
         </div>
         <div className="rounded-xl bg-card border border-border p-4">
           <p className="text-sm text-muted-foreground">Overdue</p>
@@ -279,10 +262,19 @@ export default function Invoices() {
             <tbody>
               {filtered.map((inv) => (
                 <tr key={inv.id} className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors">
-                  <td className="py-3.5 px-5 font-medium text-primary cursor-pointer">{inv.id}</td>
+                  <td className="py-3.5 px-5 cursor-pointer">
+                    <p className="font-medium text-primary">{inv.id}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Created {new Date(inv.createdAt).toLocaleDateString()}
+                    </p>
+                  </td>
                   <td className="py-3.5 px-5 cursor-pointer">{inv.client?.name || 'Unknown Client'}</td>
-                  <td className="py-3.5 px-5 font-semibold cursor-pointer">{formatAmount(inv.amount)}</td>
-                  <td className="py-3.5 px-5 cursor-pointer">{formatAmount(inv.paid)}</td>
+                  <td className="py-3.5 px-5 font-semibold cursor-pointer">
+                    {formatAmountForCurrency(inv.amount, inv.currency)}
+                  </td>
+                  <td className="py-3.5 px-5 cursor-pointer">
+                    {formatAmountForCurrency(inv.paid, inv.currency)}
+                  </td>
                   <td className="py-3.5 px-5 cursor-pointer">
                     <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${statusConfig[inv.status || 'Draft']?.className || "bg-muted text-muted-foreground"}`}>
                       {inv.status || 'Draft'}
@@ -305,6 +297,15 @@ export default function Invoices() {
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleGeneratePDF(inv, 'print')}>
                           <Printer className="mr-2 h-4 w-4" /> Print
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleDeliveryNote(inv, 'preview')}>
+                          <Truck className="mr-2 h-4 w-4" /> Preview Delivery Note
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleDeliveryNote(inv, 'download')}>
+                          <FileDown className="mr-2 h-4 w-4" /> Download Delivery Note
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleOpenVerification(inv)}>
+                          <ShieldCheck className="mr-2 h-4 w-4" /> Verify Invoice
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleShareWhatsApp(inv)}>
                           <Share2 className="mr-2 h-4 w-4" /> Share on WhatsApp
@@ -356,7 +357,10 @@ export default function Invoices() {
             <div className="space-y-2">
               <Label>Invoice Amount</Label>
               <div className="text-2xl font-bold">
-                {selectedInvoice && formatAmount(selectedInvoice.amount - selectedInvoice.paid)}
+                {selectedInvoice && formatAmountForCurrency(
+                  selectedInvoice.amount - selectedInvoice.paid,
+                  selectedInvoice.currency,
+                )}
               </div>
               <p className="text-xs text-muted-foreground">
                 Invoice #{selectedInvoice?.id}

@@ -1,22 +1,13 @@
 import * as React from "react";
+import {
+  currencies,
+  currencyOptionFor,
+  formatAmountForCurrency,
+  type CurrencyOption,
+} from "@/lib/currency";
 
-export interface CurrencyOption {
-  code: string;
-  symbol: string;
-  name: string;
-}
-
-export const currencies: readonly CurrencyOption[] = [
-  { code: "KES", symbol: "KSh", name: "Kenyan Shilling" },
-  { code: "USD", symbol: "$", name: "US Dollar" },
-  { code: "EUR", symbol: "€", name: "Euro" },
-  { code: "GBP", symbol: "£", name: "British Pound" },
-  { code: "NGN", symbol: "₦", name: "Nigerian Naira" },
-  { code: "ZAR", symbol: "R", name: "South African Rand" },
-  { code: "TZS", symbol: "TSh", name: "Tanzanian Shilling" },
-  { code: "UGX", symbol: "USh", name: "Ugandan Shilling" },
-  { code: "RWF", symbol: "RF", name: "Rwandan Franc" },
-] as const;
+export { currencies } from "@/lib/currency";
+export type { CurrencyCode, CurrencyOption } from "@/lib/currency";
 
 interface CurrencyContextType {
   currency: CurrencyOption;
@@ -35,7 +26,7 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
       try {
         const parsed = JSON.parse(saved);
         if (parsed && typeof parsed.code === "string") {
-          return parsed;
+          return currencyOptionFor(parsed.code);
         }
       } catch {
         // Fallback to default
@@ -50,10 +41,8 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const formatAmount = React.useCallback(
-    (amount: number) => {
-      return `${currency.symbol}${amount.toLocaleString()}`;
-    },
-    [currency.symbol]
+    (amount: number) => formatAmountForCurrency(amount, currency.code),
+    [currency.code]
   );
 
   const value = React.useMemo(
@@ -75,4 +64,3 @@ export function useCurrency() {
   }
   return context;
 }
-

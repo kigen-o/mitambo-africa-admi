@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCompany } from "@/contexts/CompanyContext";
@@ -15,6 +16,9 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { User, UserUpdateDTO } from "@/types";
 
+const ALLOWED_LOGO_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
+const MAX_LOGO_BYTES = Math.floor(1.5 * 1024 * 1024);
+
 export default function Settings() {
   const { companyDetails, updateCompanyDetails, uploadLogo, removeLogo } = useCompany();
   const { user, refreshUser } = useAuth();
@@ -27,7 +31,8 @@ export default function Settings() {
     address: companyDetails.address,
     phone: companyDetails.phone,
     email: companyDetails.email,
-    website: companyDetails.website
+    website: companyDetails.website,
+    paymentDetails: companyDetails.paymentDetails
   });
 
   const companyFileInputRef = useRef<HTMLInputElement>(null);
@@ -59,6 +64,18 @@ export default function Settings() {
   };
 
   useEffect(() => {
+    setCompanyForm({
+      name: companyDetails.name,
+      subtitle: companyDetails.subtitle,
+      address: companyDetails.address,
+      phone: companyDetails.phone,
+      email: companyDetails.email,
+      website: companyDetails.website,
+      paymentDetails: companyDetails.paymentDetails,
+    });
+  }, [companyDetails]);
+
+  useEffect(() => {
     if (user) {
       setProfileForm(prev => ({
         ...prev,
@@ -69,7 +86,7 @@ export default function Settings() {
   }, [user]);
 
   // Handle Company Updates
-  const handleCompanyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleCompanyChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setCompanyForm(prev => ({ ...prev, [name]: value }));
   };
@@ -81,6 +98,7 @@ export default function Settings() {
       toast.success("Company details updated successfully");
     } catch (error) {
       console.error(error);
+      toast.error(error instanceof Error ? error.message : "Failed to save company details");
     } finally {
       setLoading(false);
     }
@@ -90,21 +108,41 @@ export default function Settings() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("File size must be less than 5MB");
+    if (!ALLOWED_LOGO_TYPES.has(file.type)) {
+      toast.error("Logo must be a PNG, JPEG, or WebP image");
+      e.target.value = "";
+      return;
+    }
+    if (file.size > MAX_LOGO_BYTES) {
+      toast.error("Logo must not exceed 1.5 MB");
+      e.target.value = "";
       return;
     }
 
     try {
       setLoading(true);
-      await uploadLogo(file); // This might need to be adjusted if uploadLogo expects a file directly or handles the backend call
-      // Assuming uploadLogo in context handles the API call or mock
+      await uploadLogo(file);
       toast.success("Logo uploaded successfully");
     } catch (error) {
-      toast.error("Failed to upload logo");
       console.error(error);
+      toast.error(error instanceof Error ? error.message : "Failed to upload logo");
     } finally {
       setLoading(false);
+      if (companyFileInputRef.current) companyFileInputRef.current.value = "";
+    }
+  };
+
+  const handleRemoveLogo = async () => {
+    setLoading(true);
+    try {
+      await removeLogo();
+      toast.success("Logo removed successfully");
+    } catch (error) {
+      console.error(error);
+      toast.error(error instanceof Error ? error.message : "Failed to remove logo");
+    } finally {
+      setLoading(false);
+      if (companyFileInputRef.current) companyFileInputRef.current.value = "";
     }
   };
 
@@ -186,7 +224,9 @@ export default function Settings() {
                             variant="destructive"
                             size="icon"
                             className="h-8 w-8"
-                            onClick={removeLogo}
+                            onClick={handleRemoveLogo}
+                            disabled={loading}
+                            aria-label="Remove company logo"
                           >
                             <X className="h-4 w-4" />
                           </Button>
@@ -204,7 +244,7 @@ export default function Settings() {
                       type="file"
                       ref={companyFileInputRef}
                       className="hidden"
-                      accept="image/*"
+                      accept="image/png,image/jpeg,image/webp"
                       onChange={handleCompanyFileChange}
                     />
                     <Button
@@ -268,6 +308,7 @@ export default function Settings() {
                         <Input
                           id="phone"
                           name="phone"
+                          type="tel"
                           value={companyForm.phone}
                           onChange={handleCompanyChange}
                           className="pl-9"
@@ -282,6 +323,7 @@ export default function Settings() {
                         <Input
                           id="email"
                           name="email"
+                          type="email"
                           value={companyForm.email}
                           onChange={handleCompanyChange}
                           className="pl-9"
@@ -296,6 +338,7 @@ export default function Settings() {
                         <Input
                           id="website"
                           name="website"
+                          type="url"
                           value={companyForm.website}
                           onChange={handleCompanyChange}
                           className="pl-9"
@@ -305,6 +348,22 @@ export default function Settings() {
                     </div>
                   </div>
                 </div>
+              </div>
+
+              <div className="space-y-2 border-t pt-6">
+                <Label htmlFor="paymentDetails">Payment Information</Label>
+                <Textarea
+                  id="paymentDetails"
+                  name="paymentDetails"
+                  value={companyForm.paymentDetails}
+                  onChange={handleCompanyChange}
+                  maxLength={5000}
+                  rows={5}
+                  placeholder="Add bank, M-Pesa, or other payment instructions for invoices and quotations."
+                />
+                <p className="text-xs text-muted-foreground">
+                  Add display-only payment instructions. Never enter API keys, PINs, or passwords.
+                </p>
               </div>
 
               <div className="flex justify-end pt-4 border-t">

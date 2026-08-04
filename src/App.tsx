@@ -13,7 +13,7 @@ import { NotificationsProvider } from "@/contexts/NotificationsContext"; // Adde
 import { ThemeProvider } from "@/components/theme-provider";
 import { CompanyProvider } from "@/contexts/CompanyContext";
 import { ProtectedLayout } from "@/components/ProtectedLayout";
-import { SuperAdminRoute } from "@/components/ProtectedRoute";
+import { AdminRoute } from "@/components/ProtectedRoute";
 
 import Dashboard from "./views/Dashboard";
 import TasksPage from "./views/Tasks";
@@ -34,6 +34,7 @@ import Products from "./views/Products";
 import FilesPage from "./views/Files";
 import Expenses from "./views/Expenses";
 import Help from "./views/Help";
+import InvoiceVerification from "./views/InvoiceVerification";
 
 const queryClient = new QueryClient();
 const publicSignupEnabled = process.env.NEXT_PUBLIC_ALLOW_PUBLIC_SIGNUP === "true";
@@ -54,6 +55,7 @@ const App = () => {
                       <Routes>
                         {/* Public Routes */}
                         <Route path="/login" element={<Login />} />
+                        <Route path="/verify/invoice/:token" element={<InvoiceVerification />} />
                         <Route
                           path="/signup"
                           element={publicSignupEnabled ? <Signup /> : <Navigate to="/login" replace />}
@@ -74,7 +76,7 @@ const App = () => {
                         <Route path="/invoices" element={<ProtectedLayout><Invoices /></ProtectedLayout>} />
                         <Route path="/expenses" element={<ProtectedLayout><Expenses /></ProtectedLayout>} />
                         <Route path="/reports" element={<ProtectedLayout><Reports /></ProtectedLayout>} />
-                        <Route path="/settings" element={<SuperAdminRoute><ProtectedLayout><Settings /></ProtectedLayout></SuperAdminRoute>} />
+                        <Route path="/settings" element={<AdminRoute><ProtectedLayout><Settings /></ProtectedLayout></AdminRoute>} />
                         <Route path="/calendar" element={<ProtectedLayout><CalendarPage /></ProtectedLayout>} />
                         <Route path="/help" element={<ProtectedLayout><Help /></ProtectedLayout>} />
                         

@@ -141,7 +141,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
         {/* Bottom */}
         <div className="border-t border-sidebar-border p-3 space-y-1">
-          {user?.role === 'super_admin' && (
+          {isAdmin && (
             <Link
               to="/settings"
               className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-all"

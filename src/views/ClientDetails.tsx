@@ -18,7 +18,8 @@ import {
     Eye,
     Trash2,
     Plus,
-    Pencil
+    Pencil,
+    Truck
 } from "lucide-react";
 import { Client, Invoice, Quotation, Project, Communication } from "@/types";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -30,6 +31,12 @@ import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { useCompany } from "@/contexts/CompanyContext";
 import { generatePDF } from "@/lib/pdfGenerator";
+import { generateDeliveryNoteDocument, generateInvoiceDocument } from "@/lib/invoiceDocuments";
+import {
+    formatAmountForCurrency,
+    normalizeCurrencyCode,
+    type CurrencyCode,
+} from "@/lib/currency";
 import { CreateProjectDialog } from "@/components/CreateProjectDialog";
 import { CreateInvoiceDialog } from "@/components/CreateInvoiceDialog";
 import { CreateQuotationDialog } from "@/components/CreateQuotationDialog";
@@ -42,6 +49,22 @@ const commIcons = {
     call: PhoneCall,
     meeting: Video
 };
+
+function formatInvoiceTotals(
+    invoices: Invoice[] | undefined,
+    value: (invoice: Invoice) => number,
+) {
+    const totals = (invoices ?? []).reduce((grouped, invoice) => {
+        const code = normalizeCurrencyCode(invoice.currency);
+        grouped.set(code, (grouped.get(code) ?? 0) + value(invoice));
+        return grouped;
+    }, new Map<CurrencyCode, number>());
+
+    if (totals.size === 0) return formatAmountForCurrency(0, "KES");
+    return Array.from(totals, ([code, amount]) =>
+        formatAmountForCurrency(amount, code),
+    ).join(" + ");
+}
 
 export default function ClientDetails() {
     const { user } = useAuth();
@@ -75,76 +98,29 @@ export default function ClientDetails() {
     }, [id]);
 
     const handleDownloadInvoice = async (inv: Invoice) => {
-        await generatePDF({
-            title: "INVOICE",
-            subtitle: `Invoice #: ${inv.id}`,
-            filename: `Invoice-${inv.id}`,
+        await generateInvoiceDocument({
+            invoice: inv,
             companyDetails,
             action: 'download',
-            qrUrl: `https://admin.mitambo.africa/invoices?id=${inv.id}`,
-            data: [
-                {
-                    description: "Service/Product",
-                    amount: formatAmount(inv.amount),
-                    paid: formatAmount(inv.paid),
-                    status: inv.status
-                }
-            ],
-            columns: [
-                { header: "Description", dataKey: "description" },
-                { header: "Amount", dataKey: "amount" },
-                { header: "Paid", dataKey: "paid" },
-                { header: "Status", dataKey: "status" },
-            ],
-            clientDetails: {
-                name: client?.name || "Unknown Client",
-                email: client?.email || "",
-                phone: client?.phone || "",
-                address: client?.address || ""
-            },
-            totals: [
-                { label: "Total Amount:", value: formatAmount(inv.amount) },
-                { label: "Amount Paid:", value: formatAmount(inv.paid) },
-                { label: "Balance Due:", value: formatAmount(inv.amount - inv.paid) }
-            ],
-            footerNote: "Thank you for your business!"
+            client: client || undefined,
         });
     };
 
     const handlePreviewInvoice = async (inv: Invoice) => {
-        await generatePDF({
-            title: "INVOICE",
-            subtitle: `Invoice #: ${inv.id}`,
-            filename: `Invoice-${inv.id}`,
+        await generateInvoiceDocument({
+            invoice: inv,
             companyDetails,
             action: 'preview',
-            qrUrl: `https://admin.mitambo.africa/invoices?id=${inv.id}`,
-            data: [
-                {
-                    description: "Service/Product",
-                    amount: formatAmount(inv.amount),
-                    paid: formatAmount(inv.paid),
-                    status: inv.status
-                }
-            ],
-            columns: [
-                { header: "Description", dataKey: "description" },
-                { header: "Amount", dataKey: "amount" },
-                { header: "Paid", dataKey: "paid" },
-                { header: "Status", dataKey: "status" },
-            ],
-            clientDetails: {
-                name: client?.name || "Unknown Client",
-                email: client?.email || "",
-                phone: client?.phone || "",
-                address: client?.address || ""
-            },
-            totals: [
-                { label: "Total Amount:", value: formatAmount(inv.amount) },
-                { label: "Amount Paid:", value: formatAmount(inv.paid) },
-                { label: "Balance Due:", value: formatAmount(inv.amount - inv.paid) }
-            ],
-            footerNote: "Thank you for your business!"
+            client: client || undefined,
+        });
+    };
+
+    const handleDownloadDeliveryNote = async (inv: Invoice) => {
+        await generateDeliveryNoteDocument({
+            invoice: inv,
+            companyDetails,
+            action: 'download',
+            client: client || undefined,
         });
     };
 
@@ -360,7 +336,12 @@ export default function ClientDetails() {
                             </CardHeader>
                             <CardContent>
                                 <div className="text-2xl font-bold">
-                                    {formatAmount(client?.invoices?.reduce((acc: number, inv: Invoice) => acc + (inv.status === 'Paid' ? inv.amount : inv.paid), 0) || 0)}
+                                    {formatInvoiceTotals(
+                                        client?.invoices,
+                                        (invoice) => invoice.status === 'Paid'
+                                            ? invoice.amount
+                                            : invoice.paid,
+                                    )}
                                 </div>
                                 <p className="text-xs text-muted-foreground">From {client.invoices?.length || 0} invoices</p>
                             </CardContent>
@@ -479,7 +460,9 @@ export default function ClientDetails() {
                                         </div>
                                         <div className="flex items-center gap-2">
                                             <div className="text-right mr-4">
-                                                <p className="font-bold">{formatAmount(inv.amount)}</p>
+                                                <p className="font-bold">
+                                                    {formatAmountForCurrency(inv.amount, inv.currency)}
+                                                </p>
                                                 <span className={`text-xs px-2 py-1 rounded-full ${inv.status === 'Paid' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                                                     {inv.status}
                                                 </span>
@@ -490,6 +473,14 @@ export default function ClientDetails() {
                                                 </Button>
                                                 <Button variant="ghost" size="icon" onClick={() => handleDownloadInvoice(inv)}>
                                                     <FileDown className="h-4 w-4" />
+                                                </Button>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    title="Download delivery note"
+                                                    onClick={() => handleDownloadDeliveryNote(inv)}
+                                                >
+                                                    <Truck className="h-4 w-4" />
                                                 </Button>
                                             </div>
                                         </div>

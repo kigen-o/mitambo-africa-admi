@@ -10,6 +10,8 @@ import {
 export type JsonRecord = Record<string, unknown>;
 export type DocumentTable = "Invoice" | "Quotation";
 
+const roundMoney = (value: number) => Math.round(value * 100) / 100;
+
 export async function readObjectBody(request: Request): Promise<JsonRecord> {
   let body: unknown;
   try {
@@ -45,6 +47,19 @@ export function requiredText(
     throw new ApiError(`${field} must be at most ${maxLength} characters`);
   }
   return text;
+}
+
+export function optionalText(
+  value: unknown,
+  field: string,
+  maxLength = 5_000,
+): string | null {
+  if (value === undefined || value === null || value === "") return null;
+  if (typeof value !== "string") {
+    throw new ApiError(`${field} must be a string or null`);
+  }
+  if (!value.trim()) return null;
+  return requiredText(value, field, maxLength);
 }
 
 export function finiteNumber(
@@ -141,6 +156,59 @@ export function serializedLineItems(value: unknown): string | null {
   });
 
   return JSON.stringify(items);
+}
+
+/**
+ * Calculates the authoritative document total from validated, serialized line
+ * items. Legacy records without line items keep their stored amount.
+ */
+export function amountFromLineItems(
+  serializedItems: unknown,
+  vatRate: number,
+  showVat: boolean,
+  fallbackAmount: number,
+): number {
+  if (typeof serializedItems !== "string" || !serializedItems.trim()) {
+    return roundMoney(fallbackAmount);
+  }
+
+  let items: unknown;
+  try {
+    items = JSON.parse(serializedItems) as unknown;
+  } catch {
+    return roundMoney(fallbackAmount);
+  }
+  if (!Array.isArray(items) || items.length === 0) {
+    return roundMoney(fallbackAmount);
+  }
+
+  const subtotal = items.reduce((sum, entry) => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) return sum;
+    const item = entry as JsonRecord;
+    const quantity = Number(item.quantity);
+    const price = Number(item.price);
+    return Number.isFinite(quantity) && Number.isFinite(price)
+      ? sum + quantity * price
+      : sum;
+  }, 0);
+  const vat = showVat ? subtotal * (vatRate / 100) : 0;
+  return finiteNumber(roundMoney(subtotal + vat), "amount");
+}
+
+export function reconciledInvoiceStatus(
+  requestedStatus: string,
+  paid: number,
+  amount: number,
+): string {
+  if (paid > amount) {
+    throw new ApiError("paid cannot exceed the invoice amount");
+  }
+  if (amount > 0 && paid === amount) return "Paid";
+  if (paid > 0) return "Partial";
+  if (requestedStatus === "Paid" || requestedStatus === "Partial") {
+    return "Unpaid";
+  }
+  return requestedStatus;
 }
 
 export async function nextDocumentId(

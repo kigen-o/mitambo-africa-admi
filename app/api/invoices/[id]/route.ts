@@ -7,15 +7,19 @@ import {
   requireRole,
   requireSession,
 } from "@/lib/api-server";
+import { currencyCodes } from "@/lib/currency";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import {
+  amountFromLineItems,
   booleanValue,
   enumValue,
   finiteNumber,
   hasField,
   hydrateDocuments,
   isoDate,
+  optionalText,
   readObjectBody,
+  reconciledInvoiceStatus,
   requiredText,
   serializedLineItems,
   type JsonRecord,
@@ -52,6 +56,12 @@ function sanitizedUpdate(body: JsonRecord): JsonRecord {
   if (hasField(body, "paid")) {
     update.paid = finiteNumber(body.paid, "paid");
   }
+  if (hasField(body, "currency")) {
+    update.currency = enumValue(body.currency, "currency", currencyCodes);
+  }
+  if (hasField(body, "paymentDetails")) {
+    update.paymentDetails = optionalText(body.paymentDetails, "paymentDetails");
+  }
   if (hasField(body, "status")) {
     update.status = enumValue(body.status, "status", INVOICE_STATUSES);
   }
@@ -77,11 +87,60 @@ function sanitizedUpdate(body: JsonRecord): JsonRecord {
 
 export async function PUT(request: Request, context: RouteContext) {
   try {
-    requireSession(request);
+    const session = requireSession(request);
+    const body = await readObjectBody(request);
+    const isAdmin =
+      session.role === "admin" || session.role === "super_admin";
+    if (hasField(body, "paymentDetails") && !isAdmin) {
+      throw new ApiError(
+        "Only administrators can update invoice payment details",
+        403,
+      );
+    }
     const { id } = await context.params;
     const invoiceId = requiredText(id, "id", 200);
-    const update = sanitizedUpdate(await readObjectBody(request));
+    const update = sanitizedUpdate(body);
     const supabase = getSupabaseAdmin();
+    const existing = assertSupabase(
+      await supabase
+        .from("Invoice")
+        .select("*")
+        .eq("id", invoiceId)
+        .maybeSingle(),
+    ) as JsonRecord | null;
+    if (!existing) throw new ApiError("Invoice not found", 404);
+
+    const items = hasField(update, "items") ? update.items : existing.items;
+    const vatRate = finiteNumber(
+      hasField(update, "vatRate") ? update.vatRate : existing.vatRate ?? 0,
+      "vatRate",
+      0,
+      100,
+    );
+    const showVat = hasField(update, "showVat")
+      ? Boolean(update.showVat)
+      : existing.showVat !== false;
+    const fallbackAmount = finiteNumber(
+      hasField(update, "amount") ? update.amount : existing.amount,
+      "amount",
+    );
+    const amount = amountFromLineItems(
+      items,
+      vatRate,
+      showVat,
+      fallbackAmount,
+    );
+    const paid = finiteNumber(
+      hasField(update, "paid") ? update.paid : existing.paid ?? 0,
+      "paid",
+    );
+    const requestedStatus = String(
+      hasField(update, "status") ? update.status : existing.status ?? "Unpaid",
+    );
+    update.amount = amount;
+    update.paid = paid;
+    update.status = reconciledInvoiceStatus(requestedStatus, paid, amount);
+
     const result = await supabase
       .from("Invoice")
       .update(update)

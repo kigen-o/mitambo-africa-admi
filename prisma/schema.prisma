@@ -60,21 +60,24 @@ model Communication {
 }
 
 model Invoice {
-  id          String   @id @default(uuid())
-  clientId    String
-  title       String
-  amount      Float
-  paid        Float    @default(0)
-  status      String   @default("Unpaid")
-  dueDate     DateTime
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  items       String?  @db.Text
-  client      Client   @relation(fields: [clientId], references: [id])
-  vatRate     Float    @default(0)
-  createdById String?
-  user        User?    @relation(fields: [createdById], references: [id])
-  showVat     Boolean  @default(true)
+  id                String   @id @default(uuid())
+  clientId          String
+  title             String
+  amount            Float
+  paid              Float    @default(0)
+  currency          String   @default("KES") @db.VarChar(3)
+  status            String   @default("Unpaid")
+  dueDate           DateTime
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  items             String?  @db.Text
+  client            Client   @relation(fields: [clientId], references: [id])
+  vatRate           Float    @default(0)
+  createdById       String?
+  user              User?    @relation(fields: [createdById], references: [id])
+  showVat           Boolean  @default(true)
+  paymentDetails    String?  @db.Text
+  verificationToken String   @unique @default(dbgenerated("replace((gen_random_uuid())::text, '-'::text, ''::text)"))
 }
 
 model Product {

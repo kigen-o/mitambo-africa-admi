@@ -2,13 +2,25 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import QRCode from "qrcode";
 import { toast } from "sonner";
+import {
+    formatAmountForCurrency,
+    normalizeCurrencyCode,
+    type CurrencyCode,
+} from "@/lib/currency";
 
 // Colors
 const COLOR_PRIMARY = [22, 104, 53] as [number, number, number]; // Brand Green (#166835)
 const COLOR_SECONDARY = [100, 116, 139] as [number, number, number]; // Slate 500
 const COLOR_TEXT = [15, 23, 42] as [number, number, number]; // Slate 900
 
-interface PDFOptions {
+export type PDFAction = 'download' | 'preview' | 'print' | 'email';
+
+export interface PDFSignatureField {
+    label: string;
+    value?: string;
+}
+
+export interface PDFOptions {
     title: string;
     subtitle?: string;
     filename: string;
@@ -30,10 +42,25 @@ interface PDFOptions {
         address?: string;
     };
     totals?: { label: string; value: string | number }[];
+    metadataLines?: string[];
+    clientLabel?: string;
+    paymentDetails?: string;
     footerNote?: string;
-    action?: 'download' | 'preview' | 'print' | 'email';
-    qrUrl?: string; // Add QR code URL
+    action?: PDFAction;
+    qrUrl?: string;
+    qrLabel?: string;
+    signatureFields?: PDFSignatureField[];
     createdBy?: string;
+}
+
+interface InvoiceSummaryRecord {
+    id: string;
+    client?: { name?: string };
+    amount: number;
+    paid: number;
+    currency?: CurrencyCode;
+    status: string;
+    createdAt: string | Date;
 }
 
 const getImageDimensions = (base64: string): Promise<{ width: number; height: number }> => {
@@ -56,9 +83,14 @@ export const generatePDF = async ({
     companyDetails,
     clientDetails,
     totals,
+    metadataLines = [],
+    clientLabel = "BILL TO:",
+    paymentDetails,
     footerNote,
     action = 'download',
     qrUrl,
+    qrLabel,
+    signatureFields = [],
     createdBy
 }: PDFOptions) => {
     const doc = new jsPDF();
@@ -84,8 +116,8 @@ export const generatePDF = async ({
 
             hasLogo = true;
             logoHeight = finalHeight;
-        } catch (e) {
-            console.error("Failed to calculate logo dimensions", e);
+        } catch (error) {
+            console.error("Failed to calculate logo dimensions", error);
         }
     }
 
@@ -101,7 +133,7 @@ export const generatePDF = async ({
         try {
             doc.addImage(companyDetails.logo!, jsPDFFormat, 14, 10, finalWidth, finalHeight);
             logoDrawn = true;
-        } catch (e) {
+        } catch {
             // Fallback
             try {
                 doc.addImage(companyDetails.logo!, 14, 10, 20, 20);
@@ -162,14 +194,20 @@ export const generatePDF = async ({
     if (qrUrl) {
         try {
             const qrDataUrl = await QRCode.toDataURL(qrUrl, { margin: 1, width: 100 });
-            doc.addImage(qrDataUrl, "PNG", 170, 35, 26, 26);
+            doc.addImage(qrDataUrl, "PNG", 170, 48, 26, 26);
+            if (qrLabel) {
+                doc.setFontSize(7);
+                doc.setTextColor(COLOR_SECONDARY[0], COLOR_SECONDARY[1], COLOR_SECONDARY[2]);
+                const qrLabelLines = doc.splitTextToSize(qrLabel, 32) as string[];
+                doc.text(qrLabelLines.slice(0, 2), 183, 77, { align: "center" });
+            }
         } catch (e) {
             console.error("Failed to add QR code", e);
         }
     }
 
     // Document Title
-    let yPos = Math.max(55, headerBgHeight + 10);
+    let yPos = Math.max(qrUrl ? 88 : 55, headerBgHeight + 10);
     doc.setFontSize(18);
     doc.setTextColor(COLOR_TEXT[0], COLOR_TEXT[1], COLOR_TEXT[2]);
     doc.setFont("helvetica", "bold");
@@ -183,6 +221,17 @@ export const generatePDF = async ({
         doc.text(subtitle, 14, yPos);
     }
 
+    if (metadataLines.length > 0) {
+        doc.setFontSize(9);
+        doc.setTextColor(COLOR_SECONDARY[0], COLOR_SECONDARY[1], COLOR_SECONDARY[2]);
+        doc.setFont("helvetica", "normal");
+        for (const line of metadataLines) {
+            if (!line.trim()) continue;
+            yPos += 5;
+            doc.text(line, 14, yPos);
+        }
+    }
+
     // Client Details Section
     if (clientDetails) {
         yPos += 15;
@@ -190,7 +239,7 @@ export const generatePDF = async ({
         // Label
         doc.setFontSize(10);
         doc.setTextColor(COLOR_SECONDARY[0], COLOR_SECONDARY[1], COLOR_SECONDARY[2]);
-        doc.text("BILL TO:", 14, yPos);
+        doc.text(clientLabel, 14, yPos);
 
         yPos += 6;
         doc.setFontSize(11);
@@ -238,51 +287,108 @@ export const generatePDF = async ({
         },
         alternateRowStyles: {
             fillColor: [248, 250, 252]
-        }
+        },
+        margin: { bottom: 30 }
     });
 
-    // Totals Section
-    const finalY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10;
+    const pageHeight = doc.internal.pageSize.height;
+    const contentBottom = pageHeight - 30;
+    let currentY =
+        (doc as unknown as { lastAutoTable?: { finalY?: number } }).lastAutoTable
+            ?.finalY ?? yPos;
+    currentY += 10;
 
-    if (totals) {
-        let currentY = finalY;
-        totals.forEach(total => {
+    const ensureSpace = (height: number) => {
+        if (currentY + height <= contentBottom) return;
+        doc.addPage();
+        currentY = 20;
+    };
+
+    if (totals && totals.length > 0) {
+        ensureSpace(totals.length * 7);
+        for (const total of totals) {
             doc.setFontSize(10);
+            doc.setFont("helvetica", "normal");
             doc.setTextColor(COLOR_SECONDARY[0], COLOR_SECONDARY[1], COLOR_SECONDARY[2]);
             doc.text(total.label, 140, currentY);
 
             doc.setFont("helvetica", "bold");
             doc.setTextColor(COLOR_TEXT[0], COLOR_TEXT[1], COLOR_TEXT[2]);
             doc.text(String(total.value), 196, currentY, { align: "right" });
-
             currentY += 7;
-        });
+        }
     }
 
-    // Footer / Divider
-    const pageHeight = doc.internal.pageSize.height;
-    doc.setDrawColor(226, 232, 240); // Border color
-    doc.line(14, pageHeight - 20, 196, pageHeight - 20);
+    const trimmedPaymentDetails = paymentDetails?.trim();
+    if (trimmedPaymentDetails) {
+        currentY += 3;
+        ensureSpace(12);
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(COLOR_TEXT[0], COLOR_TEXT[1], COLOR_TEXT[2]);
+        doc.text("PAYMENT DETAILS", 14, currentY);
+        currentY += 6;
 
-    doc.setFontSize(9);
-    doc.setTextColor(COLOR_SECONDARY[0], COLOR_SECONDARY[1], COLOR_SECONDARY[2]);
-    doc.setFont("helvetica", "normal");
-
-    if (footerNote) {
-        doc.text(footerNote, 14, pageHeight - 12);
-    } else {
-        doc.text(`Generated by ${companyDetails.name}`, 14, pageHeight - 12);
-    }
-
-    if (createdBy) {
-        doc.setFontSize(8);
-        doc.setTextColor(COLOR_SECONDARY[0], COLOR_SECONDARY[1], COLOR_SECONDARY[2]);
-        doc.setFont("helvetica", "italic");
-        doc.text(`Generated by: ${createdBy}`, 196, pageHeight - 15, { align: "right" });
+        doc.setFontSize(9);
         doc.setFont("helvetica", "normal");
-        doc.text(`Page 1 of 1`, 196, pageHeight - 10, { align: "right" });
-    } else {
-        doc.text(`Page 1 of 1`, 196, pageHeight - 15, { align: "right" });
+        doc.setTextColor(COLOR_SECONDARY[0], COLOR_SECONDARY[1], COLOR_SECONDARY[2]);
+        const paymentLines = doc.splitTextToSize(trimmedPaymentDetails, 182) as string[];
+        for (const line of paymentLines) {
+            ensureSpace(5);
+            doc.text(line, 14, currentY);
+            currentY += 5;
+        }
+    }
+
+    if (signatureFields.length > 0) {
+        currentY += 5;
+        const fieldWidth = 78;
+        const fieldGap = 20;
+        const rowHeight = 24;
+        for (let index = 0; index < signatureFields.length; index += 2) {
+            ensureSpace(rowHeight);
+            for (let offset = 0; offset < 2; offset += 1) {
+                const field = signatureFields[index + offset];
+                if (!field) continue;
+                const x = 14 + offset * (fieldWidth + fieldGap);
+                if (field.value) {
+                    doc.setFontSize(9);
+                    doc.setFont("helvetica", "normal");
+                    doc.setTextColor(COLOR_TEXT[0], COLOR_TEXT[1], COLOR_TEXT[2]);
+                    const valueLines = doc.splitTextToSize(field.value, fieldWidth) as string[];
+                    doc.text(valueLines.slice(0, 2), x, currentY + 5);
+                }
+                doc.setDrawColor(148, 163, 184);
+                doc.line(x, currentY + 12, x + fieldWidth, currentY + 12);
+                doc.setFontSize(8);
+                doc.setFont("helvetica", "normal");
+                doc.setTextColor(COLOR_SECONDARY[0], COLOR_SECONDARY[1], COLOR_SECONDARY[2]);
+                doc.text(field.label, x, currentY + 17);
+            }
+            currentY += rowHeight;
+        }
+    }
+
+    // Draw a consistent footer on every page after all overflow pages exist.
+    const pageCount = doc.getNumberOfPages();
+    for (let pageNumber = 1; pageNumber <= pageCount; pageNumber += 1) {
+        doc.setPage(pageNumber);
+        doc.setDrawColor(226, 232, 240);
+        doc.line(14, pageHeight - 20, 196, pageHeight - 20);
+        doc.setFontSize(8);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(COLOR_SECONDARY[0], COLOR_SECONDARY[1], COLOR_SECONDARY[2]);
+
+        const footerText = footerNote || `Generated by ${companyDetails.name}`;
+        const footerLines = doc.splitTextToSize(footerText, 118) as string[];
+        doc.text(footerLines.slice(0, 2), 14, pageHeight - 14);
+
+        if (createdBy) {
+            doc.setFont("helvetica", "italic");
+            doc.text(`Generated by: ${createdBy}`, 196, pageHeight - 15, { align: "right" });
+            doc.setFont("helvetica", "normal");
+        }
+        doc.text(`Page ${pageNumber} of ${pageCount}`, 196, pageHeight - 10, { align: "right" });
     }
 
     // Output logic
@@ -322,24 +428,40 @@ export const generatePDF = async ({
 };
 
 export const generateInvoicesSummary = async (
-    invoices: any[],
-    companyDetails: any,
-    formatAmount: (amount: number) => string
+    invoices: InvoiceSummaryRecord[],
+    companyDetails: PDFOptions["companyDetails"],
 ) => {
     const data = invoices.map(inv => ({
         id: inv.id,
         client: inv.client?.name || 'Unknown',
-        amount: formatAmount(inv.amount),
-        paid: formatAmount(inv.paid),
+        amount: formatAmountForCurrency(inv.amount, inv.currency),
+        paid: formatAmountForCurrency(inv.paid, inv.currency),
         status: inv.status,
         date: new Date(inv.createdAt).toLocaleDateString()
     }));
 
-    const totals = [
-        { label: 'Total Invoiced:', value: formatAmount(invoices.reduce((sum, inv) => sum + inv.amount, 0)) },
-        { label: 'Total Paid:', value: formatAmount(invoices.reduce((sum, inv) => sum + inv.paid, 0)) },
-        { label: 'Outstanding:', value: formatAmount(invoices.reduce((sum, inv) => sum + (inv.amount - inv.paid), 0)) }
-    ];
+    const groupedTotals = invoices.reduce((grouped, invoice) => {
+        const code = normalizeCurrencyCode(invoice.currency);
+        const totals = grouped.get(code) ?? { invoiced: 0, paid: 0 };
+        totals.invoiced += invoice.amount;
+        totals.paid += invoice.paid;
+        grouped.set(code, totals);
+        return grouped;
+    }, new Map<CurrencyCode, { invoiced: number; paid: number }>());
+    const totals = Array.from(groupedTotals, ([code, values]) => [
+        {
+            label: `Total Invoiced (${code}):`,
+            value: formatAmountForCurrency(values.invoiced, code),
+        },
+        {
+            label: `Total Paid (${code}):`,
+            value: formatAmountForCurrency(values.paid, code),
+        },
+        {
+            label: `Outstanding (${code}):`,
+            value: formatAmountForCurrency(values.invoiced - values.paid, code),
+        },
+    ]).flat();
 
     await generatePDF({
         title: 'Invoices Report',

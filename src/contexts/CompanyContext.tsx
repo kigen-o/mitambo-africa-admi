@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { api } from '@/lib/api';
-import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
+import type { BackendSettings } from '@/types';
 
 export interface CompanyDetails {
     name: string;
@@ -16,9 +16,9 @@ export interface CompanyDetails {
 
 interface CompanyContextType {
     companyDetails: CompanyDetails;
-    updateCompanyDetails: (details: Partial<CompanyDetails>) => void;
+    updateCompanyDetails: (details: Partial<CompanyDetails>) => Promise<void>;
     uploadLogo: (file: File) => Promise<void>;
-    removeLogo: () => void;
+    removeLogo: () => Promise<void>;
 }
 
 const defaultDetails: CompanyDetails = {
@@ -34,6 +34,20 @@ const defaultDetails: CompanyDetails = {
 
 const CompanyContext = createContext<CompanyContextType | undefined>(undefined);
 
+const fromBackendSettings = (
+    data: BackendSettings,
+    fallback: CompanyDetails = defaultDetails,
+): CompanyDetails => ({
+    name: data.companyName ?? fallback.name,
+    subtitle: data.companySubtitle ?? fallback.subtitle,
+    address: data.companyAddress ?? fallback.address,
+    phone: data.companyPhone ?? fallback.phone,
+    email: data.companyEmail ?? fallback.email,
+    website: data.companyWebsite ?? fallback.website,
+    logo: data.companyLogo ?? fallback.logo,
+    paymentDetails: data.paymentDetails ?? fallback.paymentDetails,
+});
+
 export const CompanyProvider = ({ children }: { children: ReactNode }) => {
     const { user, loading: authLoading } = useAuth();
     const [companyDetails, setCompanyDetails] = useState<CompanyDetails>(defaultDetails);
@@ -44,26 +58,13 @@ export const CompanyProvider = ({ children }: { children: ReactNode }) => {
             setCompanyDetails(defaultDetails);
             return;
         }
-        loadSettings();
+        void loadSettings();
     }, [authLoading, user]);
 
     const loadSettings = async () => {
         try {
             const data = await api.settings.get();
-            // Map backend fields to frontend interface if mismatched, or ensure consistency
-            // Backend has companyName, companyEmail etc. Frontend has name, email...
-            if (data && data.companyName) {
-                setCompanyDetails({
-                    name: data.companyName,
-                    subtitle: data.companySubtitle || "Agency Suite",
-                    address: data.companyAddress || defaultDetails.address,
-                    phone: data.companyPhone || defaultDetails.phone,
-                    email: data.companyEmail || defaultDetails.email,
-                    website: data.companyWebsite || "www.mitambo.africa",
-                    logo: data.companyLogo || null,
-                    paymentDetails: data.paymentDetails || ""
-                });
-            }
+            setCompanyDetails(fromBackendSettings(data));
         } catch (error) {
             console.error("Failed to load settings", error);
         }
@@ -71,48 +72,48 @@ export const CompanyProvider = ({ children }: { children: ReactNode }) => {
 
     const updateCompanyDetails = async (details: Partial<CompanyDetails>) => {
         const updatedDetails = { ...companyDetails, ...details };
-        // Optimistic update
         setCompanyDetails(updatedDetails);
 
         try {
-            // Map to backend fields using the full updated state
             const backendData = {
                 companyName: updatedDetails.name,
                 companyAddress: updatedDetails.address,
                 companyPhone: updatedDetails.phone,
                 companyEmail: updatedDetails.email,
-                companyLogo: updatedDetails.logo,
                 companyWebsite: updatedDetails.website,
                 companySubtitle: updatedDetails.subtitle,
-                paymentDetails: updatedDetails.paymentDetails
+                paymentDetails: updatedDetails.paymentDetails,
+                ...(Object.prototype.hasOwnProperty.call(details, 'logo')
+                    ? { companyLogo: updatedDetails.logo }
+                    : {}),
             };
-            await api.settings.update(backendData);
-            toast.success("Settings saved");
-        } catch (_error) {
-            toast.error("Failed to save settings");
-            // Optionally revert update if it fails
-            loadSettings();
+            const saved = await api.settings.update(backendData);
+            setCompanyDetails(fromBackendSettings(saved, updatedDetails));
+        } catch (error) {
+            setCompanyDetails(companyDetails);
+            throw error;
         }
     };
 
-    const uploadLogo = (file: File): Promise<void> => {
-        return new Promise((resolve, reject) => {
+    const uploadLogo = async (file: File): Promise<void> => {
+        const logo = await new Promise<string>((resolve, reject) => {
             const reader = new FileReader();
             reader.onloadend = () => {
                 if (typeof reader.result === 'string') {
-                    updateCompanyDetails({ logo: reader.result });
-                    resolve();
+                    resolve(reader.result);
                 } else {
                     reject(new Error('Failed to convert image to base64'));
                 }
             };
-            reader.onerror = reject;
+            reader.onerror = () => reject(new Error('Failed to read the logo file'));
+            reader.onabort = () => reject(new Error('Logo upload was cancelled'));
             reader.readAsDataURL(file);
         });
+        await updateCompanyDetails({ logo });
     };
 
-    const removeLogo = () => {
-        updateCompanyDetails({ logo: null });
+    const removeLogo = async () => {
+        await updateCompanyDetails({ logo: null });
     };
 
     return (

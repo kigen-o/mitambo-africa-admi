@@ -1,18 +1,23 @@
 import { NextResponse } from "next/server";
+import { randomUUID } from "node:crypto";
 import {
   assertSupabase,
   handleApiError,
   requireSession,
 } from "@/lib/api-server";
+import { currencyCodes } from "@/lib/currency";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import {
+  amountFromLineItems,
   booleanValue,
   enumValue,
   finiteNumber,
   hydrateDocuments,
   isoDate,
   nextDocumentId,
+  optionalText,
   readObjectBody,
+  reconciledInvoiceStatus,
   requiredText,
   serializedLineItems,
   type JsonRecord,
@@ -50,28 +55,70 @@ export async function POST(request: Request) {
     const supabase = getSupabaseAdmin();
     const createdAt = new Date();
     const timestamp = createdAt.toISOString();
+    const isAdmin =
+      session.role === "admin" || session.role === "super_admin";
+    const hasPaymentDetails = Object.prototype.hasOwnProperty.call(
+      body,
+      "paymentDetails",
+    );
+    let paymentDetails: string | null;
+    if (isAdmin && hasPaymentDetails) {
+      paymentDetails = optionalText(body.paymentDetails, "paymentDetails");
+    } else {
+      const settings = assertSupabase(
+        await supabase
+          .from("Settings")
+          .select("paymentDetails")
+          .order("updatedAt", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      );
+      paymentDetails = optionalText(
+        settings?.paymentDetails,
+        "paymentDetails",
+      );
+    }
+
+    const items = serializedLineItems(body.items);
+    const vatRate =
+      body.vatRate === undefined
+        ? 0
+        : finiteNumber(body.vatRate, "vatRate", 0, 100);
+    const showVat =
+      body.showVat === undefined
+        ? true
+        : booleanValue(body.showVat, "showVat");
+    const suppliedAmount = finiteNumber(body.amount, "amount");
+    const amount = amountFromLineItems(
+      items,
+      vatRate,
+      showVat,
+      suppliedAmount,
+    );
+    const paid =
+      body.paid === undefined ? 0 : finiteNumber(body.paid, "paid");
+    const requestedStatus =
+      body.status === undefined
+        ? "Unpaid"
+        : enumValue(body.status, "status", INVOICE_STATUSES);
 
     const invoice: JsonRecord = {
+      verificationToken: randomUUID().replaceAll("-", ""),
       clientId: requiredText(body.clientId, "clientId", 200),
       title: requiredText(body.title, "title"),
-      amount: finiteNumber(body.amount, "amount"),
-      paid:
-        body.paid === undefined ? 0 : finiteNumber(body.paid, "paid"),
-      status:
-        body.status === undefined
-          ? "Unpaid"
-          : enumValue(body.status, "status", INVOICE_STATUSES),
+      amount,
+      paid,
+      currency:
+        body.currency === undefined
+          ? "KES"
+          : enumValue(body.currency, "currency", currencyCodes),
+      paymentDetails,
+      status: reconciledInvoiceStatus(requestedStatus, paid, amount),
       dueDate: isoDate(body.dueDate, "dueDate"),
-      items: serializedLineItems(body.items),
-      vatRate:
-        body.vatRate === undefined
-          ? 0
-          : finiteNumber(body.vatRate, "vatRate", 0, 100),
+      items,
+      vatRate,
       createdById: session.sub,
-      showVat:
-        body.showVat === undefined
-          ? true
-          : booleanValue(body.showVat, "showVat"),
+      showVat,
       createdAt: timestamp,
       updatedAt: timestamp,
     };

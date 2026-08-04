@@ -1,3 +1,5 @@
+import type { CurrencyCode } from "@/lib/currency";
+
 export interface User {
     id: string;
     email: string;
@@ -78,11 +80,14 @@ export interface InvoiceItem {
 
 export interface Invoice {
     id: string;
+    verificationToken: string;
     clientId: string;
     client?: Client;
     title: string;
     amount: number;
     paid: number;
+    currency: CurrencyCode;
+    paymentDetails?: string | null;
     status: 'Paid' | 'Partial' | 'Unpaid' | 'Overdue' | 'Draft' | 'Pending';
     dueDate: string;
     vatRate?: number;

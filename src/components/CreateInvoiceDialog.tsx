@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
@@ -11,6 +12,9 @@ import { Plus, Trash2, Receipt } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { InvoiceItem, Client, Invoice } from "@/types";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCompany } from "@/contexts/CompanyContext";
+import { useCurrency } from "@/contexts/CurrencyContext";
+import { formatAmountForCurrency } from "@/lib/currency";
 
 interface CreateInvoiceDialogProps {
     open: boolean;
@@ -22,6 +26,9 @@ interface CreateInvoiceDialogProps {
 
 export function CreateInvoiceDialog({ open, onOpenChange, onInvoiceCreated, clientId, invoice }: CreateInvoiceDialogProps) {
     const { user } = useAuth();
+    const { companyDetails } = useCompany();
+    const { currency } = useCurrency();
+    const canEditPaymentDetails = user?.role === 'admin' || user?.role === 'super_admin';
     const [clients, setClients] = useState<Client[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [items, setItems] = useState<InvoiceItem[]>([
@@ -32,6 +39,7 @@ export function CreateInvoiceDialog({ open, onOpenChange, onInvoiceCreated, clie
         title: "",
         dueDate: "",
         vatRate: 0,
+        paymentDetails: "",
         status: "Unpaid" as Invoice['status'],
         showVat: true
     });
@@ -45,27 +53,53 @@ export function CreateInvoiceDialog({ open, onOpenChange, onInvoiceCreated, clie
                     title: invoice.title,
                     dueDate: new Date(invoice.dueDate).toISOString().split('T')[0],
                     vatRate: invoice.vatRate || 0,
+                    paymentDetails: invoice.paymentDetails ?? "",
                     status: invoice.status,
                     showVat: invoice.showVat ?? true
                 });
-                const parsedItems = typeof invoice.items === 'string'
-                    ? JSON.parse(invoice.items)
-                    : (invoice.items || []);
-                const normalizedItems = parsedItems.map((item: any) => ({
-                    ...item,
-                    price: Number(item.price ?? item.rate ?? item.amount ?? 0),
-                    quantity: Number(item.quantity ?? 1)
-                }));
+                let parsedItems: unknown = invoice.items || [];
+                if (typeof invoice.items === 'string') {
+                    try {
+                        parsedItems = JSON.parse(invoice.items) as unknown;
+                    } catch {
+                        parsedItems = [];
+                    }
+                }
+                const normalizedItems = (Array.isArray(parsedItems) ? parsedItems : [])
+                    .flatMap((entry): InvoiceItem[] => {
+                        if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return [];
+                        const item = entry as Record<string, unknown>;
+                        return [{
+                            ...(typeof item.id === 'string' ? { id: item.id } : {}),
+                            description: typeof item.description === 'string' ? item.description : '',
+                            price: Number(item.price ?? item.rate ?? item.amount ?? 0),
+                            quantity: Number(item.quantity ?? 1),
+                        }];
+                    });
                 setItems(normalizedItems.length > 0 ? normalizedItems : [{ description: "", quantity: 1, price: 0 }]);
             } else if (clientId) {
-                setFormData(prev => ({ ...prev, clientId, status: "Unpaid", showVat: true }));
+                setFormData(prev => ({
+                    ...prev,
+                    clientId,
+                    paymentDetails: companyDetails.paymentDetails,
+                    status: "Unpaid",
+                    showVat: true,
+                }));
                 setItems([{ description: "", quantity: 1, price: 0 }]);
             } else {
-                setFormData({ clientId: "", title: "", dueDate: "", vatRate: 0, status: "Unpaid", showVat: true });
+                setFormData({
+                    clientId: "",
+                    title: "",
+                    dueDate: "",
+                    vatRate: 0,
+                    paymentDetails: companyDetails.paymentDetails,
+                    status: "Unpaid",
+                    showVat: true,
+                });
                 setItems([{ description: "", quantity: 1, price: 0 }]);
             }
         }
-    }, [open, clientId, invoice]);
+    }, [open, clientId, invoice, companyDetails.paymentDetails]);
 
     const loadClients = async () => {
         try {
@@ -124,11 +158,20 @@ export function CreateInvoiceDialog({ open, onOpenChange, onInvoiceCreated, clie
             };
 
             if (invoice) {
-                await api.invoices.update(invoice.id, payload);
+                await api.invoices.update(invoice.id, {
+                    ...payload,
+                    ...(canEditPaymentDetails
+                        ? { paymentDetails: formData.paymentDetails }
+                        : {}),
+                });
                 toast.success("Invoice updated successfully");
             } else {
                 await api.invoices.create({
                     ...payload,
+                    currency: currency.code,
+                    ...(canEditPaymentDetails
+                        ? { paymentDetails: formData.paymentDetails }
+                        : {}),
                     paid: 0,
                     createdById: user?.id
                 });
@@ -240,6 +283,26 @@ export function CreateInvoiceDialog({ open, onOpenChange, onInvoiceCreated, clie
                         />
                     </div>
 
+                    {canEditPaymentDetails && (
+                        <div className="space-y-2">
+                            <Label htmlFor="paymentDetails">Payment Details / Instructions</Label>
+                            <Textarea
+                                id="paymentDetails"
+                                value={formData.paymentDetails}
+                                onChange={(event) => setFormData({
+                                    ...formData,
+                                    paymentDetails: event.target.value,
+                                })}
+                                rows={4}
+                                maxLength={5000}
+                                placeholder="Bank account, M-Pesa paybill, account reference, or other payment instructions"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                                The company default is prefilled for new invoices. Changes here apply only to this invoice.
+                            </p>
+                        </div>
+                    )}
+
                     <div className="space-y-4">
                         <div className="flex items-center justify-between">
                             <Label>Line Items</Label>
@@ -301,8 +364,15 @@ export function CreateInvoiceDialog({ open, onOpenChange, onInvoiceCreated, clie
 
                     <div className="flex justify-end p-4 bg-muted/30 rounded-lg">
                         <div className="text-right space-y-1">
-                            <p className="text-sm text-muted-foreground">Total Amount</p>
-                            <p className="text-2xl font-bold">{calculateTotal().toLocaleString()}</p>
+                            <p className="text-sm text-muted-foreground">
+                                Total Amount ({invoice?.currency ?? currency.code})
+                            </p>
+                            <p className="text-2xl font-bold">
+                                {formatAmountForCurrency(
+                                    calculateTotal(),
+                                    invoice?.currency ?? currency.code,
+                                )}
+                            </p>
                         </div>
                     </div>
 
