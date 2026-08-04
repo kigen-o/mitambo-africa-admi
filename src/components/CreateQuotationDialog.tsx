@@ -244,7 +244,8 @@ export function CreateQuotationDialog({ open, onOpenChange, onQuotationCreated, 
                                         <Label className="text-[10px] uppercase">Qty</Label>
                                         <Input
                                             type="number"
-                                            min="1"
+                                            min="0.01"
+                                            step="any"
                                             value={item.quantity}
                                             onChange={(e) => updateItem(index, "quantity", parseFloat(e.target.value))}
                                             required

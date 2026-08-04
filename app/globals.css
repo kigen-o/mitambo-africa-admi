@@ -8,43 +8,30 @@
   :root {
     --background: 228 25% 97%;
     --foreground: 228 30% 14%;
-
     --card: 0 0% 100%;
     --card-foreground: 228 30% 14%;
-
     --popover: 0 0% 100%;
     --popover-foreground: 228 30% 14%;
-
     --primary: 234 85% 60%;
     --primary-foreground: 0 0% 100%;
-
     --secondary: 228 20% 93%;
     --secondary-foreground: 228 30% 14%;
-
     --muted: 228 15% 94%;
     --muted-foreground: 228 10% 50%;
-
     --accent: 234 85% 96%;
     --accent-foreground: 234 85% 45%;
-
     --destructive: 0 72% 55%;
     --destructive-foreground: 0 0% 100%;
-
     --success: 152 60% 45%;
     --success-foreground: 0 0% 100%;
-
     --warning: 38 92% 55%;
     --warning-foreground: 0 0% 100%;
-
     --info: 205 85% 55%;
     --info-foreground: 0 0% 100%;
-
     --border: 228 15% 90%;
     --input: 228 15% 90%;
     --ring: 234 85% 60%;
-
     --radius: 0.75rem;
-
     --sidebar-background: 234 40% 16%;
     --sidebar-foreground: 228 15% 80%;
     --sidebar-primary: 234 85% 60%;
@@ -54,7 +41,6 @@
     --sidebar-border: 234 25% 22%;
     --sidebar-ring: 234 85% 60%;
     --sidebar-muted: 234 20% 35%;
-
     --chart-1: 234 85% 60%;
     --chart-2: 152 60% 45%;
     --chart-3: 38 92% 55%;
@@ -65,32 +51,23 @@
   .dark {
     --background: 228 30% 8%;
     --foreground: 228 10% 92%;
-
     --card: 228 25% 12%;
     --card-foreground: 228 10% 92%;
-
     --popover: 228 25% 12%;
     --popover-foreground: 228 10% 92%;
-
     --primary: 234 85% 65%;
     --primary-foreground: 0 0% 100%;
-
     --secondary: 228 20% 18%;
     --secondary-foreground: 228 10% 92%;
-
     --muted: 228 15% 18%;
     --muted-foreground: 228 10% 55%;
-
     --accent: 234 40% 20%;
     --accent-foreground: 234 85% 75%;
-
     --destructive: 0 62% 45%;
     --destructive-foreground: 0 0% 100%;
-
     --border: 228 15% 20%;
     --input: 228 15% 20%;
     --ring: 234 85% 65%;
-
     --sidebar-background: 234 40% 10%;
     --sidebar-foreground: 228 15% 75%;
     --sidebar-primary: 234 85% 65%;
@@ -111,10 +88,6 @@
   body {
     @apply bg-background text-foreground font-sans antialiased;
     font-family: 'Inter', sans-serif;
-    min-height: 100vh;
-    background:
-      radial-gradient(circle at top, hsl(var(--primary) / 0.10), transparent 28%),
-      linear-gradient(180deg, hsl(var(--background)), hsl(var(--background)));
   }
 }
 

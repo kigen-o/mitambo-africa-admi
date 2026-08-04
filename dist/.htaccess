@@ -1,8 +1,12 @@
 RewriteEngine On
 RewriteBase /
 
-# Exclude /api from React Router so cPanel's Node.js App can handle backend requests
-RewriteCond %{REQUEST_URI} !^/api [NC]
+# Handle React Router — serve index.html for all non-file requests
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^ index.html [QSA,L]
+
+# Proxy /api requests to Node.js backend using RewriteRule
+<IfModule mod_rewrite.c>
+  RewriteRule ^api/(.*)$ http://127.0.0.1:3001/api/$1 [P,L]
+</IfModule>

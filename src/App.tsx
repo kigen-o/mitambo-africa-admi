@@ -1,4 +1,6 @@
 
+"use client";
+
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -11,6 +13,7 @@ import { NotificationsProvider } from "@/contexts/NotificationsContext"; // Adde
 import { ThemeProvider } from "@/components/theme-provider";
 import { CompanyProvider } from "@/contexts/CompanyContext";
 import { ProtectedLayout } from "@/components/ProtectedLayout";
+import { SuperAdminRoute } from "@/components/ProtectedRoute";
 
 import Dashboard from "./pages/Dashboard";
 import TasksPage from "./pages/Tasks";
@@ -46,7 +49,7 @@ const App = () => {
                   <ProductsProvider> {/* Added ProductsProvider */}
                     <Toaster />
                     <Sonner />
-                    <BrowserRouter>
+                    <BrowserRouter basename="/">
                       <Routes>
                         {/* Public Routes */}
                         <Route path="/login" element={<Login />} />
@@ -67,7 +70,7 @@ const App = () => {
                         <Route path="/invoices" element={<ProtectedLayout><Invoices /></ProtectedLayout>} />
                         <Route path="/expenses" element={<ProtectedLayout><Expenses /></ProtectedLayout>} />
                         <Route path="/reports" element={<ProtectedLayout><Reports /></ProtectedLayout>} />
-                        <Route path="/settings" element={<ProtectedLayout><Settings /></ProtectedLayout>} />
+                        <Route path="/settings" element={<SuperAdminRoute><ProtectedLayout><Settings /></ProtectedLayout></SuperAdminRoute>} />
                         <Route path="/calendar" element={<ProtectedLayout><CalendarPage /></ProtectedLayout>} />
                         <Route path="/help" element={<ProtectedLayout><Help /></ProtectedLayout>} />
                         

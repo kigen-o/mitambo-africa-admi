@@ -6,8 +6,7 @@ RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^ index.html [QSA,L]
 
-# Proxy /api requests to Node.js backend
-<IfModule mod_proxy.c>
-  ProxyPass /api http://127.0.0.1:3001/api
-  ProxyPassReverse /api http://127.0.0.1:3001/api
+# Proxy /api requests to Node.js backend using RewriteRule
+<IfModule mod_rewrite.c>
+  RewriteRule ^api/(.*)$ http://127.0.0.1:3001/api/$1 [P,L]
 </IfModule>

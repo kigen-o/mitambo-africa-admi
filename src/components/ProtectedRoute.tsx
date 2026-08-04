@@ -21,3 +21,21 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
     return <>{children}</>;
 };
+
+export const SuperAdminRoute = ({ children }: { children: React.ReactNode }) => {
+    const { user, loading } = useAuth();
+    
+    if (loading) {
+        return (
+            <div className="h-screen w-screen flex items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+        );
+    }
+
+    if (!user || user.role !== 'super_admin') {
+        return <Navigate to="/" replace />;
+    }
+
+    return <>{children}</>;
+};

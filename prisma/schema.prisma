@@ -68,7 +68,7 @@ model Invoice {
   dueDate     DateTime
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  items       String?
+  items       String?  @db.Text
   client      Client   @relation(fields: [clientId], references: [id])
   vatRate     Float    @default(0)
   createdById String?
@@ -97,7 +97,7 @@ model Quotation {
   validUntil DateTime
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
-  items      String?
+  items      String?   @db.Text
   client     Client   @relation(fields: [clientId], references: [id])
   createdById String?
   user       User?    @relation(fields: [createdById], references: [id])
@@ -124,13 +124,14 @@ model Settings {
   companyEmail    String?
   companyPhone    String?
   companyAddress  String?
-  companyLogo     String?
+  companyLogo     String?  @db.LongText
   companyWebsite  String?
   companySubtitle String?
   mpesaPaybill    String?
   mpesaAccount    String?
   mpesaKey        String?
   mpesaSecret     String?
+  paymentDetails  String?  @db.Text
   updatedAt       DateTime @updatedAt
 }
 

@@ -10,6 +10,7 @@ export interface CompanyDetails {
     email: string;
     website: string;
     logo: string | null; // Base64 string
+    paymentDetails: string;
 }
 
 interface CompanyContextType {
@@ -26,7 +27,8 @@ const defaultDetails: CompanyDetails = {
     phone: "+254 700 000 000",
     email: "hello@mitambo.africa",
     website: "www.mitambo.africa",
-    logo: null
+    logo: null,
+    paymentDetails: ""
 };
 
 const CompanyContext = createContext<CompanyContextType | undefined>(undefined);
@@ -51,7 +53,8 @@ export const CompanyProvider = ({ children }: { children: ReactNode }) => {
                     phone: data.companyPhone || defaultDetails.phone,
                     email: data.companyEmail || defaultDetails.email,
                     website: data.companyWebsite || "www.mitambo.africa",
-                    logo: data.companyLogo || null
+                    logo: data.companyLogo || null,
+                    paymentDetails: data.paymentDetails || ""
                 });
             }
         } catch (error) {
@@ -73,7 +76,8 @@ export const CompanyProvider = ({ children }: { children: ReactNode }) => {
                 companyEmail: updatedDetails.email,
                 companyLogo: updatedDetails.logo,
                 companyWebsite: updatedDetails.website,
-                companySubtitle: updatedDetails.subtitle
+                companySubtitle: updatedDetails.subtitle,
+                paymentDetails: updatedDetails.paymentDetails
             };
             await api.settings.update(backendData);
             toast.success("Settings saved");

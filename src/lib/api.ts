@@ -1,16 +1,26 @@
 // API URL configuration - automatically switches between dev and production
-const API_URL = import.meta.env.PROD
-    ? '/api'  // Production: relative URL (same domain)
-    : 'http://localhost:3001/api';  // Development: localhost
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
 import { User, Client, Invoice, Quotation, LoginCredentials, SignupData, Product, BackendSettings, UserUpdateDTO, DashboardStats, Task, Project, Expense, Communication } from "@/types";
 
 export async function apiRequest<T = unknown>(endpoint: string, options: RequestInit = {}): Promise<T> {
-    const token = localStorage.getItem('auth_token');
+    const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+    const storedUser = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
+    let userRole = '';
+    let userId = '';
+    if (storedUser) {
+        try {
+            const user = JSON.parse(storedUser);
+            userRole = user.role || '';
+            userId = user.id || '';
+        } catch(e) {}
+    }
 
     const headers = {
         'Content-Type': 'application/json',
         ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        ...(userRole ? { 'X-User-Role': userRole } : {}),
+        ...(userId ? { 'X-User-Id': userId } : {}),
         ...options.headers,
     };
 
@@ -140,12 +150,28 @@ export const api = {
     },
     files: {
         list: () => apiRequest<any[]>('/files'),
-        upload: (formData: FormData) => fetch(`${API_URL}/files`, {
-            method: 'POST',
-            body: formData,
-            // Header for auth if needed, but fetch doesn't attach it automatically like apiRequest helper 
-            // We should probably adapt apiRequest or just manual fetch here due to FormData content-type issues
-        }).then(res => res.json()),
+        upload: (formData: FormData) => {
+            const token = localStorage.getItem('auth_token');
+            const storedUser = localStorage.getItem('user');
+            let userRole = '';
+            let userId = '';
+            if (storedUser) {
+                try {
+                    const user = JSON.parse(storedUser);
+                    userRole = user.role || '';
+                    userId = user.id || '';
+                } catch(e) {}
+            }
+            return fetch(`${API_URL}/files`, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+                    ...(userRole ? { 'X-User-Role': userRole } : {}),
+                    ...(userId ? { 'X-User-Id': userId } : {}),
+                }
+            }).then(res => res.json());
+        },
         delete: (id: string) => apiRequest<{ success: boolean }>(`/files/${id}`, {
             method: 'DELETE',
         }),

@@ -83,16 +83,20 @@ const seedSuperAdmin = async () => {
 console.log("Database URL:", process.env.DATABASE_URL?.replace(/:[^:]*@/, ':****@')); // Hide password in logs
 const PORT = process.env.PORT || 3001;
 
-// CORS configuration for production
-const corsOptions = {
-    origin: process.env.NODE_ENV === 'production'
-        ? ['https://admin.mitambo.africa', 'https://www.admin.mitambo.africa']
-        : ['http://localhost:8080', 'http://localhost:5173', 'http://localhost:3000'],
-    credentials: true,
-    optionsSuccessStatus: 200
-};
+// Custom CORS middleware to guarantee localhost:80 (XAMPP) and others work
+app.use((req, res, next) => {
+    const origin = req.headers.origin || '*';
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS,PATCH');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-User-Role, X-User-Id');
+    
+    if (req.method === 'OPTIONS') {
+        return res.status(200).end();
+    }
+    next();
+});
 
-app.use(cors(corsOptions));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
@@ -196,6 +200,15 @@ app.post('/api/auth/login', async (req, res) => {
     }
 });
 
+// Middleware for RBAC
+const requireSuperAdmin = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const role = req.headers['x-user-role'];
+    if (role !== 'super_admin') {
+        return res.status(403).json({ error: 'Forbidden: Super Admin access required' });
+    }
+    next();
+};
+
 // User Routes
 app.get('/api/users/:id', async (req, res) => {
     try {
@@ -224,7 +237,7 @@ app.get('/api/users', async (req, res) => {
     }
 });
 
-app.post('/api/users', async (req, res) => {
+app.post('/api/users', requireSuperAdmin, async (req, res) => {
     const { email, password, fullName, role } = req.body;
     try {
         const user = await prisma.user.create({
@@ -247,6 +260,12 @@ app.post('/api/users', async (req, res) => {
 });
 
 app.put('/api/users/:id', async (req, res) => {
+    const role = req.headers['x-user-role'];
+    const userId = req.headers['x-user-id'];
+    if (role !== 'super_admin' && userId !== req.params.id) {
+        return res.status(403).json({ error: 'Forbidden: Cannot update other users' });
+    }
+
     const { email, password, fullName, avatarUrl } = req.body;
     try {
         const updateData: { email: string; password?: string } = { email };
@@ -294,13 +313,27 @@ app.get('/api/invoices', async (req, res) => {
 app.post('/api/invoices', async (req, res) => {
     try {
         const id = await generateDocumentId('invoice');
-        const { vatRate } = req.body;
+        const { vatRate, createdById, ...rest } = req.body;
+        
+        let validCreatedById = undefined;
+        if (createdById) {
+            const userExists = await prisma.user.findUnique({
+                where: { id: createdById }
+            });
+            if (userExists) {
+                validCreatedById = createdById;
+            } else {
+                console.warn(`User ID ${createdById} not found in database. Omitting createdById.`);
+            }
+        }
+
         const invoice = await prisma.invoice.create({
             data: {
-                ...req.body,
+                ...rest,
                 vatRate: vatRate || 0,
-                items: typeof req.body.items === 'string' ? req.body.items : JSON.stringify(req.body.items),
-                id
+                items: typeof rest.items === 'string' ? rest.items : JSON.stringify(rest.items),
+                id,
+                createdById: validCreatedById
             }
         });
         res.json(invoice);
@@ -312,10 +345,26 @@ app.post('/api/invoices', async (req, res) => {
 
 app.put('/api/invoices/:id', async (req, res) => {
     try {
-        const data = { ...req.body };
+        const { createdById, ...rest } = req.body;
+        const data = { ...rest };
         if (data.items && typeof data.items !== 'string') {
             data.items = JSON.stringify(data.items);
         }
+        
+        if (createdById) {
+            const userExists = await prisma.user.findUnique({
+                where: { id: createdById }
+            });
+            if (userExists) {
+                data.createdById = createdById;
+            } else {
+                console.warn(`User ID ${createdById} not found in database. Setting createdById to null.`);
+                data.createdById = null;
+            }
+        } else if (createdById === null) {
+            data.createdById = null;
+        }
+
         const invoice = await prisma.invoice.update({
             where: { id: req.params.id },
             data
@@ -435,16 +484,31 @@ app.get('/api/quotations', async (req, res) => {
 app.post('/api/quotations', async (req, res) => {
     try {
         const id = await generateDocumentId('quotation');
+        const { createdById, ...rest } = req.body;
+        
+        let validCreatedById = undefined;
+        if (createdById) {
+            const userExists = await prisma.user.findUnique({
+                where: { id: createdById }
+            });
+            if (userExists) {
+                validCreatedById = createdById;
+            } else {
+                console.warn(`User ID ${createdById} not found in database. Omitting createdById.`);
+            }
+        }
+
         const quotation = await prisma.quotation.create({
             data: {
                 id,
-                clientId: req.body.clientId,
-                title: req.body.title,
-                amount: req.body.amount,
-                status: req.body.status || 'Draft',
-                vatRate: req.body.vatRate || 0,
-                validUntil: new Date(req.body.validUntil),
-                items: typeof req.body.items === 'string' ? req.body.items : JSON.stringify(req.body.items)
+                clientId: rest.clientId,
+                title: rest.title,
+                amount: rest.amount,
+                status: rest.status || 'Draft',
+                vatRate: rest.vatRate || 0,
+                validUntil: new Date(rest.validUntil),
+                items: typeof rest.items === 'string' ? rest.items : JSON.stringify(rest.items),
+                createdById: validCreatedById
             }
         });
         res.json(quotation);
@@ -456,13 +520,29 @@ app.post('/api/quotations', async (req, res) => {
 
 app.put('/api/quotations/:id', async (req, res) => {
     try {
-        const data = { ...req.body };
+        const { createdById, ...rest } = req.body;
+        const data = { ...rest };
         if (data.items && typeof data.items !== 'string') {
             data.items = JSON.stringify(data.items);
         }
         if (data.validUntil) {
             data.validUntil = new Date(data.validUntil);
         }
+        
+        if (createdById) {
+            const userExists = await prisma.user.findUnique({
+                where: { id: createdById }
+            });
+            if (userExists) {
+                data.createdById = createdById;
+            } else {
+                console.warn(`User ID ${createdById} not found in database. Setting createdById to null.`);
+                data.createdById = null;
+            }
+        } else if (createdById === null) {
+            data.createdById = null;
+        }
+
         const quotation = await prisma.quotation.update({
             where: { id: req.params.id },
             data
@@ -492,7 +572,7 @@ app.get('/api/settings', async (req, res) => {
     res.json(settings || {});
 });
 
-app.post('/api/settings', async (req, res) => {
+app.post('/api/settings', requireSuperAdmin, async (req, res) => {
     const count = await prisma.settings.count();
     if (count === 0) {
         const settings = await prisma.settings.create({
@@ -813,7 +893,18 @@ app.delete('/api/communications/:id', async (req, res) => {
 });
 
 // Start Server
-app.listen(PORT, async () => {
+const server = app.listen(PORT, async () => {
     await seedSuperAdmin();
     console.log(`Server running on http://localhost:${PORT}`);
 });
+
+server.on('error', (err) => {
+    console.error('Server error:', err);
+});
+
+server.on('close', () => {
+    console.log('Server closed!');
+});
+
+// Keep process alive explicitly just in case
+setInterval(() => {}, 1000 * 60 * 60);
