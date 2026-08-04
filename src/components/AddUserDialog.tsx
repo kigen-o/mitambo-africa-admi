@@ -12,6 +12,16 @@ import {
 } from "@/components/ui/select";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
+import { SignupData } from "@/types";
+
+type UserRole = NonNullable<SignupData['role']>;
+
+interface NewUserForm {
+    fullName: string;
+    email: string;
+    password: string;
+    role: UserRole;
+}
 
 interface AddUserDialogProps {
     open: boolean;
@@ -21,7 +31,7 @@ interface AddUserDialogProps {
 
 export function AddUserDialog({ open, onOpenChange, onUserCreated }: AddUserDialogProps) {
     const [isLoading, setIsLoading] = useState(false);
-    const [formData, setFormData] = useState({
+    const [formData, setFormData] = useState<NewUserForm>({
         fullName: "",
         email: "",
         password: "",
@@ -101,7 +111,7 @@ export function AddUserDialog({ open, onOpenChange, onUserCreated }: AddUserDial
                         <div className="col-span-3">
                             <Select
                                 value={formData.role}
-                                onValueChange={(value) => setFormData({ ...formData, role: value })}
+                                onValueChange={(value) => setFormData({ ...formData, role: value as UserRole })}
                             >
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select role" />

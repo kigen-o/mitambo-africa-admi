@@ -41,6 +41,7 @@ export interface BackendSettings {
     companyEmail?: string;
     companyWebsite?: string;
     companyLogo?: string | null;
+    paymentDetails?: string;
 }
 
 export interface Client {

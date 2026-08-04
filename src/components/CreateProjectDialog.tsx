@@ -7,7 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
-import { Client } from "@/types";
+import { Client, Project } from "@/types";
+
+type ProjectFormData = Pick<Project, 'name' | 'clientId' | 'stage' | 'priority' | 'progress' | 'deadline'>;
 
 interface CreateProjectDialogProps {
     open: boolean;
@@ -19,7 +21,7 @@ interface CreateProjectDialogProps {
 export function CreateProjectDialog({ open, onOpenChange, onProjectCreated, clientId }: CreateProjectDialogProps) {
     const [clients, setClients] = useState<Client[]>([]);
     const [isLoading, setIsLoading] = useState(false);
-    const [formData, setFormData] = useState({
+    const [formData, setFormData] = useState<ProjectFormData>({
         name: "",
         clientId: clientId || "",
         stage: "Design",
@@ -119,7 +121,7 @@ export function CreateProjectDialog({ open, onOpenChange, onProjectCreated, clie
                             <Label htmlFor="priority">Priority</Label>
                             <Select
                                 value={formData.priority}
-                                onValueChange={(value) => setFormData({ ...formData, priority: value })}
+                                onValueChange={(value) => setFormData({ ...formData, priority: value as Project['priority'] })}
                             >
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select priority" />

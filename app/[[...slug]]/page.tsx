@@ -1,5 +1,5 @@
-import App from '../../src/App';
+import ClientApp from '../client-app';
 
 export default function CatchAllPage() {
-  return <App />;
+  return <ClientApp />;
 }

@@ -9,6 +9,9 @@ lerna-debug.log*
 
 node_modules
 *.local
+.next/
+.vercel/
+tsconfig.tsbuildinfo
 
 # Editor directories and files
 .vscode/*

@@ -1,5 +1,6 @@
-// API URL configuration - automatically switches between dev and production
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+// Use the separately deployed API in production and the local Express server in development.
+const API_URL = process.env.NEXT_PUBLIC_API_URL
+    || (process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:3001/api');
 
 import { User, Client, Invoice, Quotation, LoginCredentials, SignupData, Product, BackendSettings, UserUpdateDTO, DashboardStats, Task, Project, Expense, Communication } from "@/types";
 
@@ -13,7 +14,9 @@ export async function apiRequest<T = unknown>(endpoint: string, options: Request
             const user = JSON.parse(storedUser);
             userRole = user.role || '';
             userId = user.id || '';
-        } catch(e) {}
+        } catch {
+            // Ignore malformed cached user data.
+        }
     }
 
     const headers = {
@@ -44,7 +47,7 @@ export const api = {
             method: 'POST',
             body: JSON.stringify(userData),
         }),
-        login: (credentials: LoginCredentials) => apiRequest<{ user: User, session: unknown }>('/auth/login', {
+        login: (credentials: LoginCredentials) => apiRequest<{ user: User, session: { access_token: string } }>('/auth/login', {
             method: 'POST',
             body: JSON.stringify(credentials),
         }),
@@ -160,7 +163,9 @@ export const api = {
                     const user = JSON.parse(storedUser);
                     userRole = user.role || '';
                     userId = user.id || '';
-                } catch(e) {}
+                } catch {
+                    // Ignore malformed cached user data.
+                }
             }
             return fetch(`${API_URL}/files`, {
                 method: 'POST',
